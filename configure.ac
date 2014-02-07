@@ -219,6 +219,7 @@ common/Makefile
 common/m4/Makefile
 gst/Makefile
 gst/decproxy/Makefile
+gst/httpextbin/Makefile
 tests/Makefile
 tests/check/Makefile
 tests/examples/Makefile
