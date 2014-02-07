@@ -220,6 +220,7 @@ common/m4/Makefile
 gst/Makefile
 gst/decproxy/Makefile
 gst/httpextbin/Makefile
+gst/dynappsrc/Makefile
 tests/Makefile
 tests/check/Makefile
 tests/examples/Makefile
