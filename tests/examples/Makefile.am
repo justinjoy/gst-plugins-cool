@@ -1,9 +1,11 @@
 SUBDIRS = \
 	rm \
 	mediainfo \
-	textbin
+	textbin \
+	dynappsrc
 
 DIST_SUBDIRS = \
 	rm \
 	mediainfo \
-	textbin
+	textbin \
+	dynappsrc

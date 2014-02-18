@@ -251,6 +251,7 @@ tests/examples/Makefile
 tests/examples/rm/Makefile
 tests/examples/mediainfo/Makefile
 tests/examples/textbin/Makefile
+tests/examples/dynappsrc/Makefile
 m4/Makefile
 scripts/registry/gst-registry.conf
 scripts/registry/gst-env.conf
