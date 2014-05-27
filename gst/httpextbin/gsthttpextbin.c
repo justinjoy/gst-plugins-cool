@@ -39,6 +39,7 @@ enum
   PROP_0,
   PROP_SOURCE,
   PROP_URI,
+  PROP_SMART_PROPERTIES,
   PROP_LAST
 };
 
@@ -87,6 +88,12 @@ gst_http_ext_bin_class_init (GstHttpExtBinClass * klass)
       g_param_spec_string ("uri", "URI",
           "URI to be set source element",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_SMART_PROPERTIES,
+      g_param_spec_boxed ("smart-properties", "Smart Properties",
+          "Hold various property values for reply custom query",
+          GST_TYPE_STRUCTURE, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_http_ext_bin_change_state);
 
@@ -115,7 +122,18 @@ gst_http_ext_bin_init (GstHttpExtBin * bin)
   /* init member variable */
   bin->uri = g_strdup (DEFAULT_PROP_URI);
 
+  bin->smart_prop = NULL;
+
   GST_OBJECT_FLAG_SET (bin, GST_ELEMENT_FLAG_SOURCE);
+}
+
+static gboolean
+set_smart_properties (GQuark field_id, const GValue * value, gpointer user_data)
+{
+  GstStructure *smart_prop = (GstStructure *) user_data;
+
+  gst_structure_id_set_value (smart_prop, field_id, value);
+  return TRUE;
 }
 
 static void
@@ -135,7 +153,20 @@ gst_http_ext_bin_set_property (GObject * object, guint prop_id,
       iface->set_uri (handler, g_value_get_string (value), NULL);
       GST_OBJECT_UNLOCK (bin);
     }
+    case PROP_SMART_PROPERTIES:
+    {
+      const GstStructure *s = gst_value_get_structure (value);
+
+      if (bin->smart_prop)
+        gst_structure_foreach (s, set_smart_properties, bin->smart_prop);
+      else
+        bin->smart_prop = gst_structure_copy (s);
+
+      if (bin->source_elem)
+        g_object_set (bin->source_elem, "smart-properties", bin->smart_prop,
+            NULL);
       break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -178,6 +209,12 @@ gst_http_ext_bin_finalize (GObject * self)
   if (bin->list)
     gst_plugin_feature_list_free (bin->list);
   bin->list = NULL;
+
+  if (bin->smart_prop) {
+    gst_structure_free (bin->smart_prop);
+    bin->smart_prop = NULL;
+  }
+
 
   G_OBJECT_CLASS (parent_class)->finalize (self);
 }
@@ -397,6 +434,9 @@ setup_source (GstHttpExtBin * bin)
     GST_WARNING_OBJECT (bin, "Could not create a souphttpsrc element ");
     return FALSE;
   }
+
+  if (bin->smart_prop)
+    g_object_set (bin->source_elem, "smart-properties", bin->smart_prop, NULL);
 
   new_uri = g_strdup_printf ("%s://%s", real_protocol, location);
   GST_INFO_OBJECT (bin, "new_uri:%s", new_uri);

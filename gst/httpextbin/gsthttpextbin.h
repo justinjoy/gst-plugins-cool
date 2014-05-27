@@ -45,6 +45,8 @@ struct _GstHttpExtBin
   GstCaps *caps;
 
   GList *list;                  /* list we can use for selecting elements */
+
+  GstStructure *smart_prop;
 };
 
 struct _GstHttpExtBinClass
