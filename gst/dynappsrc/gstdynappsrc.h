@@ -50,6 +50,8 @@ struct _GstDynAppSrc
   GList *appsrc_list;
 
   gint n_source;
+
+  GstStructure *smart_prop;
 };
 
 struct _GstDynAppSrcClass

@@ -106,6 +106,7 @@ enum
   PROP_0,
   PROP_URI,
   PROP_N_SRC,
+  PROP_SMART_PROPERTIES,
   PROP_LAST
 };
 
@@ -173,6 +174,11 @@ gst_dyn_appsrc_class_init (GstDynAppSrcClass * klass)
           "Total number of source streams", 0, G_MAXINT, 0,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_SMART_PROPERTIES,
+      g_param_spec_boxed ("smart-properties", "Smart Properties",
+          "Hold various property values for reply custom query",
+          GST_TYPE_STRUCTURE, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+
   /**
    * GstDynAppSrc::new-appsrc
    * @dynappsrc: a #GstDynAppSrc
@@ -223,8 +229,25 @@ gst_dyn_appsrc_init (GstDynAppSrc * bin)
   bin->uri = g_strdup (DEFAULT_PROP_URI);
   bin->appsrc_list = NULL;
   bin->n_source = 0;
+  bin->smart_prop = NULL;
 
   GST_OBJECT_FLAG_SET (bin, GST_ELEMENT_FLAG_SOURCE);
+}
+
+static gboolean
+set_smart_properties (GQuark field_id, const GValue * value, gpointer user_data)
+{
+  GstStructure *smart_prop = (GstStructure *) user_data;
+
+  gst_structure_id_set_value (smart_prop, field_id, value);
+  return TRUE;
+}
+
+static void
+apply_smart_properties (GstAppSourceGroup * appsrc_group, GstDynAppSrc * bin)
+{
+  GstElement *elem = appsrc_group->appsrc;
+  g_object_set (elem, "smart-properties", bin->smart_prop, NULL);
 }
 
 static void
@@ -244,6 +267,19 @@ gst_dyn_appsrc_set_property (GObject * object, guint prop_id,
       iface->set_uri (handler, g_value_get_string (value), NULL);
     }
       break;
+    case PROP_SMART_PROPERTIES:
+    {
+      const GstStructure *s = gst_value_get_structure (value);
+
+      if (bin->smart_prop)
+        gst_structure_foreach (s, set_smart_properties, bin->smart_prop);
+      else
+        bin->smart_prop = gst_structure_copy (s);
+
+      if (bin->appsrc_list)
+        g_list_foreach (bin->appsrc_list, (GFunc) apply_smart_properties, bin);
+      break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -279,6 +315,11 @@ gst_dyn_appsrc_finalize (GObject * self)
   GstDynAppSrc *bin = GST_DYN_APPSRC (self);
 
   g_free (bin->uri);
+
+  if (bin->smart_prop) {
+    gst_structure_free (bin->smart_prop);
+    bin->smart_prop = NULL;
+  }
 
   G_OBJECT_CLASS (parent_class)->finalize (self);
 }
@@ -418,6 +459,11 @@ gst_dyn_appsrc_new_appsrc (GstDynAppSrc * bin, const gchar * name)
   }
   appsrc_group = g_malloc0 (sizeof (GstAppSourceGroup));
   appsrc_group->appsrc = gst_element_factory_make ("appsrc", name);
+
+  if (bin->smart_prop)
+    g_object_set (appsrc_group->appsrc, "smart-properties", bin->smart_prop,
+        NULL);
+
   bin->appsrc_list = g_list_append (bin->appsrc_list, appsrc_group);
   bin->n_source++;
 
