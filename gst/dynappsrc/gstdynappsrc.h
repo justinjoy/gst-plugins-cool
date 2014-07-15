@@ -52,6 +52,11 @@ struct _GstDynAppSrc
   gint n_source;
 
   GstStructure *smart_prop;
+
+  gboolean directv_rvu;
+  GstSegment segment;
+  GstEvent *segment_event;
+  gdouble rate;
 };
 
 struct _GstDynAppSrcClass

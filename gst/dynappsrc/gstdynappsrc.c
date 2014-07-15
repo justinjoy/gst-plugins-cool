@@ -101,6 +101,9 @@ GST_DEBUG_CATEGORY_STATIC (dyn_appsrc_debug);
 
 #define DEFAULT_PROP_URI NULL
 
+#define PTS_DTS_MAX_VALUE (((guint64)1) << 33)
+#define MPEGTIME_TO_GSTTIME(t) ((t) * 100000 / 9)
+
 enum
 {
   PROP_0,
@@ -231,6 +234,11 @@ gst_dyn_appsrc_init (GstDynAppSrc * bin)
   bin->n_source = 0;
   bin->smart_prop = NULL;
 
+  bin->directv_rvu = FALSE;
+  bin->segment_event = NULL;
+  bin->rate = 1.0;
+  gst_segment_init (&bin->segment, GST_FORMAT_TIME);
+
   GST_OBJECT_FLAG_SET (bin, GST_ELEMENT_FLAG_SOURCE);
 }
 
@@ -278,6 +286,9 @@ gst_dyn_appsrc_set_property (GObject * object, guint prop_id,
 
       if (bin->appsrc_list)
         g_list_foreach (bin->appsrc_list, (GFunc) apply_smart_properties, bin);
+
+      gst_structure_get_boolean (bin->smart_prop, "directv-rvu",
+          &bin->directv_rvu);
       break;
     }
     default:
@@ -321,6 +332,11 @@ gst_dyn_appsrc_finalize (GObject * self)
     bin->smart_prop = NULL;
   }
 
+  if (bin->segment_event) {
+    gst_event_unref (bin->segment_event);
+    bin->segment_event = NULL;
+  }
+
   G_OBJECT_CLASS (parent_class)->finalize (self);
 }
 
@@ -354,6 +370,36 @@ gst_dyn_appsrc_handle_src_event (GstPad * pad, GstObject * parent,
    * dynappsrc handle a seek event that it send to all of linked appsrce elements.
    */
   if (GST_EVENT_TYPE (event) == GST_EVENT_SEEK) {
+    if (bin->directv_rvu) {
+      GstFormat format;
+      GstSeekFlags flags;
+      gboolean flush;
+      GstSeekType start_type, stop_type;
+      gint64 start, stop;
+
+      gst_event_parse_seek (event, &bin->rate, &format, &flags, &start_type,
+          &start, &stop_type, &stop);
+
+      flush = flags & GST_SEEK_FLAG_FLUSH;
+
+      if (bin->segment_event) {
+        gst_event_unref (bin->segment_event);
+        bin->segment_event = NULL;
+      }
+
+      if (bin->rate > 2 || bin->rate < 0 || (bin->rate == 1 && !flush)) {
+        gst_event_unref (event);
+        return TRUE;
+      }
+
+      if (start_type == GST_SEEK_TYPE_SET) {
+        gst_event_unref (event);
+        event = gst_event_new_seek (bin->rate, format, flags,
+            GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE,
+            GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+      }
+    }
+
     it = gst_element_iterate_src_pads (GST_ELEMENT_CAST (bin));
     while (gst_iterator_next (it, &data) == GST_ITERATOR_OK) {
       GstPad *srcpad = g_value_get_object (&data);
@@ -372,6 +418,60 @@ gst_dyn_appsrc_handle_src_event (GstPad * pad, GstObject * parent,
     gst_event_unref (event);
 
   return res;
+}
+
+static GstPadProbeReturn
+pad_probe_cb (GstPad * pad, GstPadProbeInfo * info, gpointer data)
+{
+  GstDynAppSrc *bin = GST_DYN_APPSRC (GST_PAD_PARENT (pad));
+  GstPadProbeReturn ret = GST_PAD_PROBE_OK;
+  GstEvent *event = GST_PAD_PROBE_INFO_EVENT (info);
+
+  if (bin->directv_rvu && bin->n_source >= 2) {
+    switch (GST_EVENT_TYPE (event)) {
+      case GST_EVENT_FLUSH_STOP:
+        if (bin->segment_event) {
+          gst_event_unref (bin->segment_event);
+          bin->segment_event = NULL;
+        }
+        gst_segment_init (&bin->segment, GST_FORMAT_TIME);
+        break;
+      case GST_EVENT_SEGMENT:
+        GST_OBJECT_LOCK (bin);
+
+        if (!bin->segment_event) {
+          GList *item;
+          for (item = bin->appsrc_list; item; item = g_list_next (item)) {
+            GstAppSourceGroup *appsrc_group = (GstAppSourceGroup *) item->data;
+
+            if (pad == appsrc_group->srcpad) {
+              gst_event_copy_segment (event, &bin->segment);
+              bin->segment.start = (bin->rate < 0) ? 0 : bin->segment.time;
+              if (bin->rate < 0 && bin->segment.time < 2000000000)
+                bin->segment.time += MPEGTIME_TO_GSTTIME (PTS_DTS_MAX_VALUE);
+              bin->segment.stop =
+                  (bin->rate < 0) ? bin->segment.time : GST_CLOCK_TIME_NONE;
+              bin->segment.position = bin->segment.time;
+              bin->segment.format = GST_FORMAT_TIME;
+              bin->segment.rate = bin->rate;
+              bin->segment_event = gst_event_new_segment (&bin->segment);
+            }
+          }
+        }
+
+        gst_event_make_writable (event);
+        gst_event_ref (bin->segment_event);
+        GST_PAD_PROBE_INFO_DATA (info) = bin->segment_event;
+        gst_event_unref (event);
+
+        GST_OBJECT_UNLOCK (bin);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return ret;
 }
 
 static gboolean
@@ -402,6 +502,10 @@ setup_source (GstDynAppSrc * bin)
 
     gst_pad_set_active (appsrc_group->srcpad, TRUE);
     gst_element_add_pad (GST_ELEMENT_CAST (bin), appsrc_group->srcpad);
+
+    gst_pad_add_probe (appsrc_group->srcpad,
+        GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM | GST_PAD_PROBE_TYPE_EVENT_FLUSH,
+        pad_probe_cb, NULL, NULL);
 
     gst_object_unref (srcpad);
     g_free (padname);
