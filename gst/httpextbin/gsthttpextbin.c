@@ -57,6 +57,7 @@ static GstStateChangeReturn gst_http_ext_bin_change_state (GstElement *
     element, GstStateChange transition);
 static void gst_http_ext_bin_uri_handler_init (gpointer g_iface,
     gpointer iface_data);
+static gboolean gst_http_ext_bin_query (GstElement * element, GstQuery * query);
 
 static gboolean connect_filter_element (GstHttpExtBin * bin);
 G_DEFINE_TYPE_WITH_CODE (GstHttpExtBin, gst_http_ext_bin, GST_TYPE_BIN,
@@ -75,6 +76,8 @@ gst_http_ext_bin_class_init (GstHttpExtBinClass * klass)
   gobject_class->set_property = gst_http_ext_bin_set_property;
   gobject_class->get_property = gst_http_ext_bin_get_property;
   gobject_class->finalize = gst_http_ext_bin_finalize;
+
+  gstelement_class->query = GST_DEBUG_FUNCPTR (gst_http_ext_bin_query);
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_template));
@@ -217,6 +220,39 @@ gst_http_ext_bin_finalize (GObject * self)
 
 
   G_OBJECT_CLASS (parent_class)->finalize (self);
+}
+
+static gboolean
+gst_http_ext_bin_query (GstElement * element, GstQuery * query)
+{
+  gboolean ret = FALSE;
+  GstSchedulingFlags flags;
+  gint minsize, maxsize, align;
+  GstIterator *iter;
+  GValue data = { 0, };
+
+  g_return_val_if_fail (query != NULL, FALSE);
+
+  iter = gst_element_iterate_src_pads (element);
+
+  if (gst_iterator_next (iter, &data) == GST_ITERATOR_OK) {
+    GstObject *item = g_value_get_object (&data);
+
+    if (GST_IS_PAD (item))
+      ret = gst_pad_query (GST_PAD (item), query);
+  }
+
+  if (GST_QUERY_TYPE (query) == GST_QUERY_SCHEDULING) {
+    gst_query_parse_scheduling (query, &flags, &minsize, &maxsize, &align);
+    flags |= GST_SCHEDULING_FLAG_BANDWIDTH_LIMITED;
+    gst_query_set_scheduling (query, flags, minsize, maxsize, align);
+    ret = TRUE;
+  }
+
+  g_value_unset (&data);
+  gst_iterator_free (iter);
+
+  return ret;
 }
 
 static gboolean
