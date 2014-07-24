@@ -387,7 +387,7 @@ gst_dyn_appsrc_handle_src_event (GstPad * pad, GstObject * parent,
         bin->segment_event = NULL;
       }
 
-      if (bin->rate > 2 || bin->rate < 0 || (bin->rate == 1 && !flush)) {
+      if (bin->rate >= 2 || bin->rate < 0 || (bin->rate == 1 && !flush)) {
         gst_event_unref (event);
         return TRUE;
       }
