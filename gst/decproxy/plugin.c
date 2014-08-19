@@ -8,7 +8,7 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "decproxy", GST_RANK_PRIMARY,
+  if (!gst_element_register (plugin, "decproxy", GST_RANK_NONE,
           GST_TYPE_DEC_PROXY))
     return FALSE;
 
@@ -18,5 +18,5 @@ plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     decproxy,
-    "Decoder proxy bin",
+    "Decoder Proxy",
     plugin_init, VERSION, "LGPL", GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN);
