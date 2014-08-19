@@ -28,7 +28,8 @@ STATE_IGNORE_ELEMENTS =
 
 TESTS = $(check_PROGRAMS)
 
-check_PROGRAMS =
+check_PROGRAMS = \
+	elements/decproxy
 
 # these tests don't even pass
 noinst_PROGRAMS =
@@ -49,3 +50,7 @@ LDADD = $(GST_LIBS) $(GST_CHECK_LIBS)
 
 # valgrind testing
 VALGRIND_TESTS_DISABLE = $(VALGRIND_TO_FIX)
+
+elements_decproxy_CFLAGS = \
+	$(GST_PLUGINS_BASE_CFLAGS) \
+	$(AM_CFLAGS)
