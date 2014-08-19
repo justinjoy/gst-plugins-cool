@@ -1,4 +1,2 @@
-SUBDIRS = \
-    decproxy
-DIST_SUBDIRS = \
-    decproxy
+SUBDIRS = $(GST_PLUGINS_SELECTED)
+DIST_SUBDIRS = $(GST_PLUGINS_ALL)
