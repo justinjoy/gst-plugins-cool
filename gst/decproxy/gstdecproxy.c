@@ -38,6 +38,8 @@ static GstStateChangeReturn gst_dec_proxy_change_state (GstElement * element,
     GstStateChange transition);
 static GstFlowReturn gst_dec_proxy_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buffer);
+static gboolean gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent,
+    GstEvent * event);
 
 GST_DEBUG_CATEGORY_STATIC (dec_proxy_debug);
 #define GST_CAT_DEFAULT dec_proxy_debug
@@ -121,6 +123,9 @@ gst_dec_proxy_init (GstDecProxy * decproxy, GstDecProxyClass * g_class)
   gst_pad_set_active (decproxy->sinkpad, TRUE);
   gst_pad_set_chain_function (GST_PAD_CAST (decproxy->sinkpad),
       GST_DEBUG_FUNCPTR (gst_dec_proxy_chain));
+  gst_pad_set_event_function (GST_PAD_CAST (decproxy->sinkpad),
+      GST_DEBUG_FUNCPTR (gst_dec_proxy_sink_event));
+
   gst_element_add_pad (GST_ELEMENT (decproxy), decproxy->sinkpad);
   gst_object_unref (sink_pad_template);
 
@@ -170,6 +175,96 @@ gst_dec_proxy_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 
   return ret;
 
+}
+
+static gboolean
+append_media_field (GQuark field_id, const GValue * value, gpointer user_data)
+{
+  GstStructure *media = user_data;
+  gchar *value_str = gst_value_serialize (value);
+
+  GST_DEBUG_OBJECT (media, "field [%s:%s]", g_quark_to_string (field_id),
+      value_str);
+  gst_structure_id_set_value (media, field_id, value);
+
+  g_free (value_str);
+
+  return TRUE;
+}
+
+static void
+posting_media_info_msg (GstDecProxy * decproxy, GstCaps * caps,
+    gchar * stream_id)
+{
+  GstStructure *s;
+  GstStructure *media_info;
+  GstMessage *message;
+  const gchar *structure_name;
+  gint type = 0;
+
+  GST_DEBUG_OBJECT (decproxy, "getting caps of %" GST_PTR_FORMAT, caps);
+
+  s = gst_caps_get_structure (caps, 0);
+  structure_name = gst_structure_get_name (s);
+
+  if (g_str_has_prefix (structure_name, "video")
+      || g_str_has_prefix (structure_name, "image")) {
+    type = STREAM_VIDEO;
+  } else if (g_str_has_prefix (structure_name, "audio")) {
+    type = STREAM_AUDIO;
+  } else if (g_str_has_prefix (structure_name, "text/")
+      || g_str_has_prefix (structure_name, "application/")
+      || g_str_has_prefix (structure_name, "subpicture/")) {
+    type = STREAM_TEXT;
+  }
+
+  media_info =
+      gst_structure_new ("media-info", "stream-id", G_TYPE_STRING, stream_id,
+      "type", G_TYPE_INT, type, NULL);
+  /* append media information from caps's structure to media-info */
+  gst_structure_foreach (s, append_media_field, media_info);
+  GST_INFO_OBJECT (decproxy, "create new media info : %" GST_PTR_FORMAT,
+      media_info);
+
+  message =
+      gst_message_new_custom (GST_MESSAGE_APPLICATION, GST_OBJECT (decproxy),
+      media_info);
+  gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
+  GST_INFO_OBJECT (decproxy, "posted media-info message");
+}
+
+static gboolean
+gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
+{
+  GstDecProxy *decproxy = NULL;
+  gboolean res = TRUE;
+
+  decproxy = GST_DEC_PROXY (parent);
+  GST_DEBUG_OBJECT (decproxy, "event : %s", GST_EVENT_TYPE_NAME (event));
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CAPS:
+    {
+      GstCaps *caps;
+      gchar *stream_id;
+
+      gst_event_parse_caps (event, &caps);
+      GST_INFO_OBJECT (decproxy, "getting caps of %" GST_PTR_FORMAT, caps);
+
+      /* post media-info */
+      stream_id = gst_pad_get_stream_id (pad);
+      posting_media_info_msg (decproxy, caps, stream_id);
+      g_free (stream_id);
+
+      res = gst_pad_event_default (pad, parent, event);
+      break;
+    }
+    default:
+      res = gst_pad_event_default (pad, parent, event);
+      break;
+  }
+
+  return res;
 }
 
 static void
