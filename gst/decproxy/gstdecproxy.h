@@ -25,8 +25,7 @@
 #include <gst/gst.h>
 
 G_BEGIN_DECLS
-
-#define DECODE_CAPS \
+#define DECODE_VIDEO_CAPS \
     "video/x-divx;" \
     "video/x-h265;" \
     "video/x-h264;" \
@@ -44,7 +43,8 @@ G_BEGIN_DECLS
     "video/x-xvid;" \
     "video/x-flash-video;" \
     "video/x-raw;" \
-    "image/jpeg;" \
+    "image/jpeg"
+#define DECODE_AUDIO_CAPS \
     "audio/mpeg;"\
     "audio/x-dts;" \
     "audio/x-dtsh;" \
@@ -69,7 +69,6 @@ G_BEGIN_DECLS
     "audio/x-mulaw;" \
     "audio/x-alaw;" \
     "audio/x-private1-dts"
-
 #define GST_TYPE_DEC_PROXY (gst_dec_proxy_get_type())
 #define GST_DEC_PROXY(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_DEC_PROXY,GstDecProxy))
 #define GST_DEC_PROXY_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_DEC_PROXY,GstDecProxyClass))
@@ -81,6 +80,9 @@ typedef struct _GstDecProxyClass GstDecProxyClass;
 struct _GstDecProxy
 {
   GstBin parent;
+
+  GstPad *sinkpad;
+  GstPad *srcpad;
 };
 
 struct _GstDecProxyClass

@@ -1,4 +1,4 @@
 SUBDIRS = \
     decproxy
-DIS_SUBDIRS = \
+DIST_SUBDIRS = \
     decproxy
