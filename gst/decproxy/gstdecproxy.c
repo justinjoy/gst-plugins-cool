@@ -73,6 +73,7 @@ gst_dec_proxy_get_type (void)
 enum
 {
   PROP_0,
+  PROP_ACTUAL_DECODER,
   PROP_LAST
 };
 
@@ -97,6 +98,11 @@ gst_dec_proxy_class_init (GstDecProxyClass * klass)
 
   gobject_klass->dispose = gst_dec_proxy_dispose;
   gobject_klass->finalize = gst_dec_proxy_finalize;
+
+  g_object_class_install_property (gobject_klass, PROP_ACTUAL_DECODER,
+      g_param_spec_object ("actual-decoder", "Actual Decoder",
+          "the actual element to decode",
+          GST_TYPE_ELEMENT, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   element_class->change_state = GST_DEBUG_FUNCPTR (gst_dec_proxy_change_state);
 
@@ -445,9 +451,14 @@ static void
 gst_dec_proxy_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
-  //GstDecProxy *decproxy = GST_DEC_PROXY (object);
+  GstDecProxy *decproxy = GST_DEC_PROXY (object);
 
   switch (prop_id) {
+    case PROP_ACTUAL_DECODER:
+      GST_OBJECT_LOCK (decproxy);
+      g_value_set_object (value, decproxy->dec_elem);
+      GST_OBJECT_UNLOCK (decproxy);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
