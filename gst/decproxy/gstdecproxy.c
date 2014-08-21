@@ -28,7 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-
+static void gst_dec_proxy_dispose (GObject * obj);
 static void gst_dec_proxy_finalize (GObject * obj);
 static void gst_dec_proxy_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * spec);
@@ -36,9 +36,9 @@ static void gst_dec_proxy_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * spec);
 static GstStateChangeReturn gst_dec_proxy_change_state (GstElement * element,
     GstStateChange transition);
-static GstFlowReturn gst_dec_proxy_chain (GstPad * pad, GstObject * parent,
-    GstBuffer * buffer);
 static gboolean gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent,
+    GstEvent * event);
+static gboolean gst_dec_proxy_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 
 GST_DEBUG_CATEGORY_STATIC (dec_proxy_debug);
@@ -95,6 +95,7 @@ gst_dec_proxy_class_init (GstDecProxyClass * klass)
   gobject_klass->set_property = gst_dec_proxy_set_property;
   gobject_klass->get_property = gst_dec_proxy_get_property;
 
+  gobject_klass->dispose = gst_dec_proxy_dispose;
   gobject_klass->finalize = gst_dec_proxy_finalize;
 
   element_class->change_state = GST_DEBUG_FUNCPTR (gst_dec_proxy_change_state);
@@ -121,8 +122,6 @@ gst_dec_proxy_init (GstDecProxy * decproxy, GstDecProxyClass * g_class)
   }
 
   gst_pad_set_active (decproxy->sinkpad, TRUE);
-  gst_pad_set_chain_function (GST_PAD_CAST (decproxy->sinkpad),
-      GST_DEBUG_FUNCPTR (gst_dec_proxy_chain));
   gst_pad_set_event_function (GST_PAD_CAST (decproxy->sinkpad),
       GST_DEBUG_FUNCPTR (gst_dec_proxy_sink_event));
 
@@ -141,40 +140,34 @@ gst_dec_proxy_init (GstDecProxy * decproxy, GstDecProxyClass * g_class)
   }
 
   gst_pad_set_active (decproxy->srcpad, TRUE);
+
+  gst_pad_set_event_function (GST_PAD_CAST (decproxy->srcpad),
+      GST_DEBUG_FUNCPTR (gst_dec_proxy_src_event));
+
   gst_element_add_pad (GST_ELEMENT (decproxy), decproxy->srcpad);
   gst_object_unref (src_pad_template);
+
+  decproxy->caps = NULL;
+}
+
+static void
+gst_dec_proxy_dispose (GObject * object)
+{
+  GstDecProxy *decproxy;
+
+  decproxy = GST_DEC_PROXY (object);
+
+  if (decproxy->caps)
+    gst_caps_unref (decproxy->caps);
+  decproxy->caps = NULL;
+
+  G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
 static void
 gst_dec_proxy_finalize (GObject * obj)
 {
   G_OBJECT_CLASS (parent_class)->finalize (obj);
-}
-
-static GstFlowReturn
-gst_dec_proxy_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
-{
-  GstDecProxy *decproxy = NULL;
-  GstMapInfo inmap;
-  GstBuffer *outbuf;
-  GstFlowReturn ret;
-
-  decproxy = GST_DEC_PROXY (parent);
-
-  GST_LOG_OBJECT (decproxy, "buffer with ts=%" GST_TIME_FORMAT,
-      GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
-
-  gst_buffer_map (buffer, &inmap, GST_MAP_READ);
-
-  outbuf = gst_buffer_copy (buffer);
-
-  gst_buffer_unmap (buffer, &inmap);
-  gst_buffer_unref (buffer);
-
-  ret = gst_pad_push (decproxy->srcpad, outbuf);
-
-  return ret;
-
 }
 
 static gboolean
@@ -251,6 +244,9 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       gst_event_parse_caps (event, &caps);
       GST_INFO_OBJECT (decproxy, "getting caps of %" GST_PTR_FORMAT, caps);
 
+      if (!decproxy->caps)
+        decproxy->caps = gst_caps_ref (caps);
+
       /* post media-info */
       stream_id = gst_pad_get_stream_id (pad);
       posting_media_info_msg (decproxy, caps, stream_id);
@@ -265,6 +261,184 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
   }
 
   return res;
+}
+
+gint
+dec_proxy_compare_factories_func (gconstpointer p1, gconstpointer p2)
+{
+  /* sort by rank */
+  return gst_plugin_feature_rank_compare_func (p1, p2);
+}
+
+static GstElementFactory *
+gst_dec_proxy_update_factories_list (GstDecProxy * decproxy)
+{
+  GList *decoders = NULL;
+  GList *filtered = NULL;
+  GstElementFactory *factory = NULL;
+
+  decoders =
+      gst_element_factory_list_get_elements
+      (GST_ELEMENT_FACTORY_TYPE_DECODER, GST_RANK_MARGINAL);
+
+  if (decoders == NULL) {
+    GST_WARNING_OBJECT (decproxy, "Cannot find any of decoders");
+    goto fail;
+  }
+
+  GST_DEBUG_OBJECT (decproxy, "got factory list %p \n", decoders);
+  gst_plugin_feature_list_debug (decoders);
+
+  decoders = g_list_sort (decoders, dec_proxy_compare_factories_func);
+
+  filtered =
+      gst_element_factory_list_filter (decoders, decproxy->caps, GST_PAD_SINK,
+      FALSE);
+  GST_DEBUG_OBJECT (filtered, "got filtered list %p", filtered);
+
+  if (filtered == NULL) {
+    gchar *tmp = gst_caps_to_string (decproxy->caps);
+    GST_WARNING_OBJECT (decproxy, "Cannot find any decoder for caps %s", tmp);
+    g_free (tmp);
+    goto fail;
+  }
+
+  gst_plugin_feature_list_debug (filtered);
+
+  factory = GST_ELEMENT_FACTORY_CAST (g_list_nth_data (filtered, 0));
+
+  /* Note that decproxy can not be a child element in decproxy bin */
+  if (factory == gst_element_get_factory (GST_ELEMENT_CAST (decproxy))) {
+    factory = GST_ELEMENT_FACTORY_CAST (g_list_nth_data (filtered, 1));
+  }
+
+fail:
+  if (decoders)
+    gst_plugin_feature_list_free (decoders);
+  if (filtered)
+    gst_plugin_feature_list_free (filtered);
+
+  return factory;
+
+}
+
+static gboolean
+setup_decoder (GstDecProxy * decproxy)
+{
+  gboolean ret = TRUE;
+  GstPad *srcpad, *sinkpad;
+  GstElementFactory *factory;
+
+  GST_DEBUG_OBJECT (decproxy, "setup decoder");
+
+  factory = gst_dec_proxy_update_factories_list (decproxy);
+  if (!factory) {
+    GST_WARNING_OBJECT (decproxy, "Could not find actual decoder element");
+    return FALSE;
+  }
+
+  /* generate actual decoder element */
+  GST_DEBUG_OBJECT (decproxy, "%s wiil be deployed in decproxy bin",
+      gst_plugin_feature_get_name (GST_PLUGIN_FEATURE (factory)));
+  if (!(decproxy->dec_elem = gst_element_factory_create (factory, NULL))) {
+    GST_WARNING_OBJECT (decproxy, "Could not create a decoder element ");
+    return FALSE;
+  }
+
+  /* add decoder element to decproxy */
+  if (!(gst_bin_add (GST_BIN_CAST (decproxy), decproxy->dec_elem))) {
+    GST_WARNING_OBJECT (decproxy, "Couldn't add decoder element to bin");
+    return FALSE;
+  }
+
+  /* try to get a sinkpad from decoder element */
+  if (!(sinkpad = gst_element_get_static_pad (decproxy->dec_elem, "sink"))) {
+    GST_WARNING_OBJECT (decproxy, "Element %s doesn't have a sinkpad",
+        GST_ELEMENT_NAME (decproxy->dec_elem));
+    return FALSE;
+  }
+
+  /* try to get a srcpad from decoder element */
+  if (!(srcpad = gst_element_get_static_pad (decproxy->dec_elem, "src"))) {
+    GST_WARNING_OBJECT (decproxy, "Element %s doesn't have a srcpad",
+        GST_ELEMENT_NAME (decproxy->dec_elem));
+    return FALSE;
+  }
+
+  /* try to target from ghostpad to sinkpad */
+  gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->sinkpad), sinkpad);
+
+  /* try to target from ghostpad to srcpad */
+  gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad), srcpad);
+
+  if ((gst_element_set_state (decproxy->dec_elem,
+              GST_STATE_PAUSED)) == GST_STATE_CHANGE_FAILURE) {
+    GST_WARNING_OBJECT (decproxy, "Couldn't set %s to PAUSED",
+        GST_ELEMENT_NAME (decproxy->dec_elem));
+  }
+
+  g_object_unref (srcpad);
+  g_object_unref (sinkpad);
+
+  return ret;
+}
+
+static void
+remove_decoder (GstDecProxy * decproxy)
+{
+  if (decproxy->srcpad)
+    gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad), NULL);
+
+  if (decproxy->sinkpad)
+    gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->sinkpad), NULL);
+
+  if (decproxy->dec_elem) {
+    GST_DEBUG_OBJECT (decproxy, "removing old decoder element");
+    gst_element_set_state (decproxy->dec_elem, GST_STATE_NULL);
+
+    gst_bin_remove (GST_BIN_CAST (decproxy), decproxy->dec_elem);
+    decproxy->dec_elem = NULL;
+  }
+}
+
+static gboolean
+gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
+{
+  gboolean res = TRUE;
+  GstDecProxy *decproxy = GST_DEC_PROXY (parent);
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CUSTOM_UPSTREAM:
+    {
+      if (gst_event_has_name (event, "acquired-resource")) {
+        gboolean active = FALSE;
+        const GstStructure *st = gst_event_get_structure (event);
+        gst_structure_get_boolean (st, "active", &active);
+        GST_INFO_OBJECT (decproxy,
+            "received event : %s, active : %d",
+            GST_EVENT_TYPE_NAME (event), active);
+
+        if (active) {
+          if (!setup_decoder (decproxy))
+            goto decoder_element_failed;
+        }
+        gst_event_unref (event);
+      }
+      break;
+    }
+    default:
+      res = gst_pad_event_default (pad, parent, event);
+      break;
+  }
+
+  return res;
+
+  /* ERRORS */
+decoder_element_failed:
+  {
+    GST_WARNING_OBJECT (decproxy, "Failed to configure decoder element");
+    return FALSE;
+  }
 }
 
 static void
@@ -298,9 +472,9 @@ static GstStateChangeReturn
 gst_dec_proxy_change_state (GstElement * element, GstStateChange transition)
 {
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
-  //GstDecProxy *decproxy;
+  GstDecProxy *decproxy;
 
-  //decproxy = GST_DEC_PROXY (element);
+  decproxy = GST_DEC_PROXY (element);
 
   ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 
@@ -308,6 +482,10 @@ gst_dec_proxy_change_state (GstElement * element, GstStateChange transition)
     goto failure;
 
   switch (transition) {
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
+      GST_DEBUG_OBJECT (decproxy, "paused to ready");
+      remove_decoder (decproxy);
+      break;
     default:
       break;
   }

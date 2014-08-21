@@ -92,6 +92,8 @@ struct _GstDecProxy
 
   GstPad *sinkpad;
   GstPad *srcpad;
+  GstElement *dec_elem;
+  GstCaps *caps; /* caps on which to list up actual decoder elements */
 };
 
 struct _GstDecProxyClass
