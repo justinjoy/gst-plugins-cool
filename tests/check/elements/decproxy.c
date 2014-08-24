@@ -79,7 +79,7 @@ GST_START_TEST (test_media_info)
       gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
       "byte-stream", "alignment", G_TYPE_STRING, "nal", NULL);
 
-  /* 
+  /*
    * pushs caps event 3 times.
    * Then, passed media-info from caps should be confirmed by bus message.
    */
@@ -282,6 +282,201 @@ GST_START_TEST (test_transition_active_deactive)
 
 GST_END_TEST;
 
+/* Fake parser/decoder for parser_negotiation test */
+static GType gst_fake_h264_parser_get_type (void);
+
+#undef parent_class
+#define parent_class fake_h264_parser_parent_class
+typedef struct _GstFakeH264Parser GstFakeH264Parser;
+typedef GstElementClass GstFakeH264ParserClass;
+
+struct _GstFakeH264Parser
+{
+  GstElement parent;
+};
+
+G_DEFINE_TYPE (GstFakeH264Parser, gst_fake_h264_parser, GST_TYPE_ELEMENT);
+
+static void
+gst_fake_h264_parser_class_init (GstFakeH264ParserClass * klass)
+{
+  static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
+      GST_PAD_SINK, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS ("video/x-h264"));
+  static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src",
+      GST_PAD_SRC, GST_PAD_ALWAYS,
+      GST_STATIC_CAPS ("video/x-h264, "
+          "stream-format=(string) { avc, byte-stream }"));
+  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
+
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&sink_templ));
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&src_templ));
+  gst_element_class_set_metadata (element_class,
+      "FakeH264Parser", "Codec/Parser/Converter/Video", "yep", "me");
+}
+
+static gboolean
+gst_fake_h264_parser_sink_event (GstPad * pad, GstObject * parent,
+    GstEvent * event)
+{
+  GstElement *self = GST_ELEMENT (parent);
+  GstPad *otherpad = gst_element_get_static_pad (self, "src");
+  GstCaps *accepted_caps;
+  GstStructure *s;
+  const gchar *stream_format;
+  gboolean ret = TRUE;
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CAPS:
+      accepted_caps = gst_pad_get_allowed_caps (otherpad);
+      accepted_caps = gst_caps_truncate (accepted_caps);
+
+      s = gst_caps_get_structure (accepted_caps, 0);
+      stream_format = gst_structure_get_string (s, "stream-format");
+      if (!stream_format)
+        gst_structure_set (s, "stream-format", G_TYPE_STRING, "avc", NULL);
+
+      gst_pad_set_caps (otherpad, accepted_caps);
+      gst_caps_unref (accepted_caps);
+      gst_event_unref (event);
+      event = NULL;
+      break;
+    default:
+      break;
+  }
+
+  if (event)
+    ret = gst_pad_push_event (otherpad, event);
+  gst_object_unref (otherpad);
+
+  return ret;
+}
+
+static GstFlowReturn
+gst_fake_h264_parser_sink_chain (GstPad * pad, GstObject * parent,
+    GstBuffer * buf)
+{
+  GstElement *self = GST_ELEMENT (parent);
+  GstPad *otherpad = gst_element_get_static_pad (self, "src");
+  GstFlowReturn ret = GST_FLOW_OK;
+
+  buf = gst_buffer_make_writable (buf);
+
+  ret = gst_pad_push (otherpad, buf);
+
+  gst_object_unref (otherpad);
+
+  return ret;
+}
+
+static void
+gst_fake_h264_parser_init (GstFakeH264Parser * self)
+{
+  GstPad *pad;
+
+  pad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template
+      (GST_ELEMENT_GET_CLASS (self), "sink"), "sink");
+  gst_pad_set_event_function (pad, gst_fake_h264_parser_sink_event);
+  gst_pad_set_chain_function (pad, gst_fake_h264_parser_sink_chain);
+  gst_element_add_pad (GST_ELEMENT (self), pad);
+
+  pad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template
+      (GST_ELEMENT_GET_CLASS (self), "src"), "src");
+  gst_element_add_pad (GST_ELEMENT (self), pad);
+}
+
+static void
+parser_negotiation_pad_added_cb (GstElement * dec, GstPad * pad,
+    gpointer user_data)
+{
+  GstBin *pipe = user_data;
+  GstElement *sink;
+  GstPad *sinkpad;
+
+  sink = gst_element_factory_make ("fakesink", NULL);
+  gst_bin_add (pipe, sink);
+  gst_element_sync_state_with_parent (sink);
+  sinkpad = gst_element_get_static_pad (sink, "sink");
+  gst_pad_link (pad, sinkpad);
+  gst_object_unref (sinkpad);
+}
+
+static void
+decodebin_element_added_cb (GstBin * decodebin, GstElement * element,
+    gpointer user_data)
+{
+  gboolean *deployed_decproxy = user_data;
+
+  g_print ("element add (%s)\n", GST_ELEMENT_NAME (element));
+
+  if (g_strrstr (GST_ELEMENT_NAME (element), "vdecproxy"))
+    *deployed_decproxy = TRUE;
+}
+
+GST_START_TEST (test_deploy_at_decodebin)
+{
+  GstStateChangeReturn sret;
+  GstMessage *msg;
+  GstCaps *caps;
+  GstElement *pipe, *src, *filter, *dec;
+  gboolean deployed_decproxy = FALSE;
+  GstPluginFeature *feature;
+
+  gst_element_register (NULL, "fakeh264parse", GST_RANK_PRIMARY + 101,
+      gst_fake_h264_parser_get_type ());
+  gst_element_register (NULL, "fakeh264dec", GST_RANK_PRIMARY + 99,
+      gst_fake_h264_decoder_get_type ());
+  feature = gst_registry_find_feature (gst_registry_get (), "vdecproxy",
+      GST_TYPE_ELEMENT_FACTORY);
+  gst_plugin_feature_set_rank (feature, GST_RANK_PRIMARY + 100);
+
+  pipe = gst_pipeline_new (NULL);
+
+  src = gst_element_factory_make ("fakesrc", NULL);
+  fail_unless (src != NULL);
+  g_object_set (G_OBJECT (src), "num-buffers", 5, "sizetype", 2, "filltype", 2,
+      "can-activate-pull", FALSE, NULL);
+
+  filter = gst_element_factory_make ("capsfilter", NULL);
+  fail_unless (filter != NULL);
+  caps = gst_caps_from_string ("video/x-h264");
+  g_object_set (G_OBJECT (filter), "caps", caps, NULL);
+  gst_caps_unref (caps);
+
+  dec = gst_element_factory_make ("decodebin", NULL);
+  fail_unless (dec != NULL);
+
+  g_signal_connect (dec, "pad-added",
+      G_CALLBACK (parser_negotiation_pad_added_cb), pipe);
+  g_signal_connect (dec, "element-added",
+      G_CALLBACK (decodebin_element_added_cb), &deployed_decproxy);
+
+  gst_bin_add_many (GST_BIN (pipe), src, filter, dec, NULL);
+  gst_element_link_many (src, filter, dec, NULL);
+
+  sret = gst_element_set_state (pipe, GST_STATE_PLAYING);
+  fail_unless_equals_int (sret, GST_STATE_CHANGE_ASYNC);
+
+  /* wait for EOS or error */
+  msg = gst_bus_timed_pop_filtered (GST_ELEMENT_BUS (pipe),
+      GST_CLOCK_TIME_NONE, GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
+  fail_unless (msg != NULL);
+  fail_unless (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS);
+  gst_message_unref (msg);
+
+  gst_element_set_state (pipe, GST_STATE_NULL);
+  gst_object_unref (pipe);
+
+  gst_plugin_feature_set_rank (feature, GST_RANK_NONE);
+  gst_object_unref (feature);
+}
+
+GST_END_TEST;
+
 static Suite *
 decproxy_suite (void)
 {
@@ -294,6 +489,7 @@ decproxy_suite (void)
   tcase_add_test (tc_chain, test_active_decodable_element);
   tcase_add_test (tc_chain, test_block_event_and_data);
   tcase_add_test (tc_chain, test_transition_active_deactive);
+  tcase_add_test (tc_chain, test_deploy_at_decodebin);
 
   return s;
 }
