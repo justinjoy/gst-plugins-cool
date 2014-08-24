@@ -42,7 +42,6 @@ G_BEGIN_DECLS
     "video/x-vp8;" \
     "video/x-xvid;" \
     "video/x-flash-video;" \
-    "video/x-raw;" \
     "image/jpeg"
 #define DECODE_AUDIO_CAPS \
     "audio/mpeg;"\
@@ -55,7 +54,6 @@ G_BEGIN_DECLS
     "audio/x-private1-ac3;" \
     "audio/x-wma;" \
     "audio/x-pn-realaudio;" \
-    "audio/x-raw;" \
     "audio/x-lpcm-1;" \
     "audio/x-lpcm;" \
     "audio/x-private-lg-lpcm;" \
@@ -92,8 +90,11 @@ struct _GstDecProxy
 
   GstPad *sinkpad;
   GstPad *srcpad;
+  GstPad *q_srcpad;
   GstElement *dec_elem;
   GstCaps *caps; /* caps on which to list up actual decoder elements */
+  gulong block_id;
+  gboolean block;
 };
 
 struct _GstDecProxyClass

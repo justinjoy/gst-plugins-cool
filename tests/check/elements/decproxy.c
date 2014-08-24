@@ -211,6 +211,7 @@ GST_START_TEST (test_active_decodable_element)
 
   decproxy = gst_element_factory_make ("vdecproxy", "vdecproxy");
   fail_unless (decproxy != NULL, "Failed to create decproxy element");
+  g_object_set (decproxy, "block", 1, NULL);
 
   /* link srcpad and decproxy */
   mysrcpad = gst_check_setup_src_pad (decproxy, &src_pad_template);
