@@ -261,6 +261,17 @@ GST_START_TEST (test_active_decodable_element)
 GST_END_TEST;
 
 /*
+ * Wnen caps event is coming at the first time, decproxy should block all of
+ * data flow. It can be unblocked after 'acquired-resource' event is coming.
+ * 
+ */
+GST_START_TEST (test_block_event_and_data)
+{
+}
+
+GST_END_TEST;
+
+/*
  * When active event is coming, decproxy should deploy a decode element
  * and connect. Then remove it when deactive event is coming.
  * When status is changed, data flow should be guarantee.
@@ -476,6 +487,7 @@ decproxy_suite (void)
 
   tcase_add_test (tc_chain, test_media_info);
   tcase_add_test (tc_chain, test_active_decodable_element);
+  tcase_add_test (tc_chain, test_block_event_and_data);
   tcase_add_test (tc_chain, test_transition_active_deactive);
   tcase_add_test (tc_chain, test_deploy_at_decodebin);
 
