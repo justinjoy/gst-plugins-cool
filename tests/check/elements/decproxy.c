@@ -337,7 +337,8 @@ gst_fake_h264_parser_sink_event (GstPad * pad, GstObject * parent,
       s = gst_caps_get_structure (accepted_caps, 0);
       stream_format = gst_structure_get_string (s, "stream-format");
       if (!stream_format)
-        gst_structure_set (s, "stream-format", G_TYPE_STRING, "avc", NULL);
+        gst_structure_set (s, "stream-format", G_TYPE_STRING, "byte-stream",
+            NULL);
 
       gst_pad_set_caps (otherpad, accepted_caps);
       gst_caps_unref (accepted_caps);
@@ -406,17 +407,25 @@ parser_negotiation_pad_added_cb (GstElement * dec, GstPad * pad,
   gst_object_unref (sinkpad);
 }
 
+static GstElement *vdec = NULL;
+static GCond deploy_cond;
+static GMutex deploy_mutex;
+
 static void
 decodebin_element_added_cb (GstBin * decodebin, GstElement * element,
     gpointer user_data)
 {
   gboolean *deployed_decproxy = user_data;
 
-  g_print ("element add (%s)\n", GST_ELEMENT_NAME (element));
-
-  if (g_strrstr (GST_ELEMENT_NAME (element), "vdecproxy"))
+  if (g_strrstr (GST_ELEMENT_NAME (element), "vdecproxy")) {
+    g_mutex_lock (&deploy_mutex);
+    vdec = element;
     *deployed_decproxy = TRUE;
+    g_cond_signal (&deploy_cond);
+    g_mutex_unlock (&deploy_mutex);
+  }
 }
+
 
 GST_START_TEST (test_deploy_at_decodebin)
 {
@@ -426,6 +435,11 @@ GST_START_TEST (test_deploy_at_decodebin)
   GstElement *pipe, *src, *filter, *dec;
   gboolean deployed_decproxy = FALSE;
   GstPluginFeature *feature;
+  GstStructure *s;
+  GstEvent *event;
+
+  g_mutex_init (&deploy_mutex);
+  g_cond_init (&deploy_cond);
 
   gst_element_register (NULL, "fakeh264parse", GST_RANK_PRIMARY + 101,
       gst_fake_h264_parser_get_type ());
@@ -462,6 +476,18 @@ GST_START_TEST (test_deploy_at_decodebin)
   sret = gst_element_set_state (pipe, GST_STATE_PLAYING);
   fail_unless_equals_int (sret, GST_STATE_CHANGE_ASYNC);
 
+  g_mutex_lock (&deploy_mutex);
+  while (!vdec)
+    g_cond_wait (&deploy_cond, &deploy_mutex);
+  g_mutex_unlock (&deploy_mutex);
+
+  /* puch active event to generate actual decoder element */
+  s = gst_structure_new ("acquired-resource",
+      "active", G_TYPE_BOOLEAN, TRUE, NULL);
+  fail_if (s == NULL);
+  event = gst_event_new_custom (GST_EVENT_CUSTOM_UPSTREAM, s);
+  fail_unless (gst_element_send_event (vdec, event));
+
   /* wait for EOS or error */
   msg = gst_bus_timed_pop_filtered (GST_ELEMENT_BUS (pipe),
       GST_CLOCK_TIME_NONE, GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
@@ -474,6 +500,9 @@ GST_START_TEST (test_deploy_at_decodebin)
 
   gst_plugin_feature_set_rank (feature, GST_RANK_NONE);
   gst_object_unref (feature);
+
+  g_mutex_clear (&deploy_mutex);
+  g_cond_clear (&deploy_cond);
 }
 
 GST_END_TEST;

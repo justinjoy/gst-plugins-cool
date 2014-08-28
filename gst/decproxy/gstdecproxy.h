@@ -90,11 +90,14 @@ struct _GstDecProxy
 
   GstPad *sinkpad;
   GstPad *srcpad;
-  GstPad *q_srcpad;
   GstElement *dec_elem;
   GstCaps *caps; /* caps on which to list up actual decoder elements */
+
   gulong block_id;
+  gulong notify_caps_id;
+
   gboolean block;
+  gboolean active;
 };
 
 struct _GstDecProxyClass
