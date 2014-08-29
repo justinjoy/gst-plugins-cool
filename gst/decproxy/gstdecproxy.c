@@ -172,6 +172,9 @@ gst_dec_proxy_init (GstDecProxy * decproxy, GstDecProxyClass * g_class)
   decproxy->block_id = 0;
   decproxy->caps = NULL;
   decproxy->block = TRUE;
+  decproxy->pending_remove_probe = FALSE;
+
+  g_mutex_init (&decproxy->lock);
 }
 
 static void
@@ -191,6 +194,10 @@ gst_dec_proxy_dispose (GObject * object)
 static void
 gst_dec_proxy_finalize (GObject * obj)
 {
+  GstDecProxy *decproxy = GST_DEC_PROXY (obj);
+
+  g_mutex_clear (&decproxy->lock);
+
   G_OBJECT_CLASS (parent_class)->finalize (obj);
 }
 
@@ -250,6 +257,19 @@ posting_media_info_msg (GstDecProxy * decproxy, GstCaps * caps,
   GST_INFO_OBJECT (decproxy, "posted media-info message");
 }
 
+static GstPadProbeReturn
+sinkpad_block_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
+{
+  GstDecProxy *decproxy = GST_DEC_PROXY (user_data);
+
+  if (decproxy->pending_remove_probe) {
+    decproxy->pending_remove_probe = FALSE;
+    decproxy->block_id = 0;
+    return GST_PAD_PROBE_REMOVE;
+  }
+  return GST_PAD_PROBE_OK;
+}
+
 static gboolean
 gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
@@ -270,8 +290,11 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       gst_event_parse_caps (event, &caps);
       GST_INFO_OBJECT (decproxy, "getting caps of %" GST_PTR_FORMAT, caps);
 
+
+      GST_DEC_PROXY_LOCK (decproxy);
       if (!decproxy->caps)
         decproxy->caps = gst_caps_ref (caps);
+      GST_DEC_PROXY_UNLOCK (decproxy);
 
       /* post media-info */
       stream_id = gst_pad_get_stream_id (pad);
@@ -294,12 +317,15 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       res = gst_pad_event_default (pad, parent, event);
 
+      GST_DEC_PROXY_LOCK (decproxy);
       if (decproxy->block && !decproxy->block_id) {
         decproxy->block_id =
             gst_pad_add_probe (pad,
-            GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, NULL, NULL, NULL);
+            GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, sinkpad_block_cb, decproxy,
+            NULL);
         GST_INFO_OBJECT (pad, "locked pad %ld", decproxy->block_id);
       }
+      GST_DEC_PROXY_UNLOCK (decproxy);
       break;
     }
     default:
@@ -447,12 +473,6 @@ setup_decoder (GstDecProxy * decproxy)
   /* try to target from ghostpad to srcpad */
   gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad), srcpad);
 
-  if ((gst_element_set_state (decproxy->dec_elem,
-              GST_STATE_PAUSED)) == GST_STATE_CHANGE_FAILURE) {
-    GST_WARNING_OBJECT (decproxy, "Couldn't set %s to PAUSED",
-        GST_ELEMENT_NAME (decproxy->dec_elem));
-  }
-
   if (!gst_element_sync_state_with_parent (decproxy->dec_elem))
     GST_WARNING_OBJECT (decproxy, "Couldn't sync state with parent");
 
@@ -492,13 +512,19 @@ caps_notify_cb (GstPad * pad, GParamSpec * unused, GstDecProxy * decproxy)
   if (!setup_decoder (decproxy))
     GST_WARNING_OBJECT (decproxy, "Failed to configure decoder element");
 
+  GST_DEC_PROXY_LOCK (decproxy);
+
   if (decproxy->block_id) {
     gst_pad_remove_probe (decproxy->sinkpad, decproxy->block_id);
     decproxy->block_id = 0;
   }
 
-  if (decproxy->notify_caps_id)
+  GST_DEC_PROXY_UNLOCK (decproxy);
+
+  if (decproxy->notify_caps_id) {
     g_signal_handler_disconnect (decproxy->sinkpad, decproxy->notify_caps_id);
+    decproxy->notify_caps_id = 0;
+  }
 }
 
 
@@ -537,12 +563,20 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
           if (!setup_decoder (decproxy))
             goto decoder_element_failed;
 
+          GST_DEC_PROXY_LOCK (decproxy);
+
+          if (!gst_pad_is_blocking (decproxy->sinkpad))
+            decproxy->pending_remove_probe = TRUE;
+
           if (decproxy->block_id) {
             gst_pad_remove_probe (decproxy->sinkpad, decproxy->block_id);
             decproxy->block_id = 0;
           }
+
+          GST_DEC_PROXY_UNLOCK (decproxy);
         }
         gst_event_unref (event);
+
       }
       break;
     }
@@ -644,8 +678,7 @@ gst_dec_proxy_change_state (GstElement * element, GstStateChange transition)
       break;
   }
 
-  /* ERRORS */
+/* ERRORS */
 failure:
-  return ret;
-
+  return ret;;
 }

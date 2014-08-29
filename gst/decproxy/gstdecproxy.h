@@ -72,6 +72,9 @@ G_BEGIN_DECLS
 #define GST_DEC_PROXY_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_DEC_PROXY,GstDecProxyClass))
 #define GST_IS_DEC_PROXY(obj) (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_DEC_PROXY))
 #define GST_IS_DEC_PROXY_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_DEC_PROXY))
+#define GST_DEC_PROXY_GET_LOCK(dec) (&((GstDecProxy*)(dec))->lock)
+#define GST_DEC_PROXY_LOCK(dec) (g_mutex_lock (GST_DEC_PROXY_GET_LOCK(dec)))
+#define GST_DEC_PROXY_UNLOCK(dec) (g_mutex_unlock (GST_DEC_PROXY_GET_LOCK(dec)))
 
 enum
 {
@@ -88,6 +91,8 @@ struct _GstDecProxy
 {
   GstBin parent;
 
+  GMutex lock;
+
   GstPad *sinkpad;
   GstPad *srcpad;
   GstElement *dec_elem;
@@ -98,6 +103,7 @@ struct _GstDecProxy
 
   gboolean block;
   gboolean active;
+  gboolean pending_remove_probe;
 };
 
 struct _GstDecProxyClass
