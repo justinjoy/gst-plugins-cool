@@ -1,2 +1,5 @@
-SUBDIRS = 
-DIST_SUBDIRS = 
+SUBDIRS = \
+	rm
+
+DIST_SUBDIRS = \
+	rm

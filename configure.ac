@@ -224,6 +224,7 @@ gst/dynappsrc/Makefile
 tests/Makefile
 tests/check/Makefile
 tests/examples/Makefile
+tests/examples/rm/Makefile
 m4/Makefile
 )
 AC_OUTPUT
