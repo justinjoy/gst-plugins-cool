@@ -242,9 +242,10 @@ posting_media_info_msg (GstDecProxy * decproxy, GstCaps * caps,
     type = STREAM_TEXT;
   }
 
-  media_info =
-      gst_structure_new ("media-info", "stream-id", G_TYPE_STRING, stream_id,
-      "type", G_TYPE_INT, type, NULL);
+  media_info = gst_structure_new ("media-info",
+      "stream-id", G_TYPE_STRING, stream_id,
+      "type", G_TYPE_INT, type,
+      "mime-type", G_TYPE_STRING, g_strdup (structure_name), NULL);
   /* append media information from caps's structure to media-info */
   gst_structure_foreach (s, append_media_field, media_info);
   GST_INFO_OBJECT (decproxy, "create new media info : %" GST_PTR_FORMAT,
