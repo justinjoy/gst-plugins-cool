@@ -491,10 +491,13 @@ setup_decoder (GstDecProxy * decproxy)
       GST_DEBUG_OBJECT (decproxy->dec_elem, "Auido index set as %d",
           decproxy->acquired_port);
     } else if (decproxy->stream_type == STREAM_VIDEO) {
-      g_object_set (decproxy->dec_elem, "vdec-ch", decproxy->acquired_port,
-          NULL);
-      GST_DEBUG_OBJECT (decproxy->dec_elem, "Video channel set as %d",
-          decproxy->acquired_port);
+      if (g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
+              "vdec-ch")) {
+        g_object_set (decproxy->dec_elem, "vdec-ch", decproxy->acquired_port,
+            NULL);
+        GST_DEBUG_OBJECT (decproxy->dec_elem, "Video channel set as %d",
+            decproxy->acquired_port);
+      }
 
       /* set port property for video-decoder in lm15u */
       if (g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),

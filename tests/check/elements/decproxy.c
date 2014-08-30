@@ -25,92 +25,6 @@
 #include <gst/gst.h>
 #include <gst/check/gstcheck.h>
 
-static gboolean
-compare_media_field (GQuark field_id, const GValue * value, gpointer user_data)
-{
-  const GstStructure *s2;
-  gchar *value_str1, *value_str2;
-
-  /* No need to compare stream-id and type */
-  if ((g_strcmp0 (g_quark_to_string (field_id), "stream-id") == 0)
-      || (g_strcmp0 (g_quark_to_string (field_id), "type") == 0))
-    return TRUE;
-
-  s2 = user_data;
-  value_str1 = gst_value_serialize (value);
-  value_str2 = gst_value_serialize (gst_structure_id_get_value (s2, field_id));
-
-  if (g_strcmp0 (value_str1, value_str2) != 0)
-    return FALSE;
-
-  g_free (value_str1);
-  g_free (value_str2);
-
-  return TRUE;
-}
-
-/*
- * When caps event is coming, decproxy should trans caps's information to
- * media-info application message and post.
- * It should be confirmed by bus.
- */
-GST_START_TEST (test_media_info)
-{
-  GstElement *decproxy;
-  GstCaps *caps_list[3];
-  GstBus *bus;
-  GstMessage *message;
-  gint i;
-
-  decproxy = gst_element_factory_make ("vdecproxy", "vdecproxy");
-  fail_unless (decproxy != NULL, "Failed to create decproxy element");
-
-  bus = gst_bus_new ();
-  gst_element_set_bus (decproxy, bus);
-
-  /* setup caps */
-  caps_list[0] =
-      gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
-      "byte-stream", NULL);
-  caps_list[1] =
-      gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
-      "avc", NULL);
-  caps_list[2] =
-      gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
-      "byte-stream", "alignment", G_TYPE_STRING, "nal", NULL);
-
-  /*
-   * pushs caps event 3 times.
-   * Then, passed media-info from caps should be confirmed by bus message.
-   */
-  for (i = 0; i < 3; i++) {
-    fail_unless (gst_element_send_event (decproxy,
-            gst_event_new_caps (caps_list[i])));
-
-    message = gst_bus_poll (bus, GST_MESSAGE_APPLICATION, 2 * GST_SECOND);
-    fail_unless (message != NULL, "Failed to receive media-info msg");
-    if (gst_message_has_name (message, "media-info")) {
-      const GstStructure *s1;
-      GstStructure *s2;
-
-      s1 = gst_message_get_structure (message);
-      s2 = gst_caps_get_structure (caps_list[i], 0);
-      fail_unless (gst_structure_foreach (s1, compare_media_field, s2),
-          "Found not matched value");
-    }
-    gst_message_unref (message);
-  }
-
-  /* cleanup */
-  gst_element_set_bus (decproxy, NULL);
-  gst_object_unref (bus);
-  for (i = 0; i < 3; i++)
-    gst_caps_unref (caps_list[i]);
-  gst_object_unref (decproxy);
-}
-
-GST_END_TEST;
-
 /* Fake decoder */
 static GType gst_fake_h264_decoder_get_type (void);
 
@@ -179,6 +93,112 @@ gst_fake_h264_decoder_init (GstFakeH264Decoder * self)
   gst_element_add_pad (GST_ELEMENT (self), pad);
 }
 
+static gboolean
+compare_media_field (GQuark field_id, const GValue * value, gpointer user_data)
+{
+  const GstStructure *s2;
+  gchar *value_str1, *value_str2;
+
+  /* No need to compare stream-id and type */
+  if ((g_strcmp0 (g_quark_to_string (field_id), "stream-id") == 0)
+      || (g_strcmp0 (g_quark_to_string (field_id), "type") == 0)
+      || (g_strcmp0 (g_quark_to_string (field_id), "mime-type") == 0))
+    return TRUE;
+
+  s2 = user_data;
+  value_str1 = gst_value_serialize (value);
+  value_str2 = gst_value_serialize (gst_structure_id_get_value (s2, field_id));
+
+  if (g_strcmp0 (value_str1, value_str2) != 0)
+    return FALSE;
+
+  g_free (value_str1);
+  g_free (value_str2);
+
+  return TRUE;
+}
+
+/*
+ * When caps event is coming, decproxy should trans caps's information to
+ * media-info application message and post.
+ * It should be confirmed by bus.
+ */
+GST_START_TEST (test_media_info)
+{
+  GstElement *decproxy;
+  GstCaps *caps_list[3];
+  GstBus *bus;
+  GstMessage *message;
+  gint i;
+  GstStructure *s;
+
+  gst_element_register (NULL, "fakeh264dec", GST_RANK_PRIMARY + 101,
+      gst_fake_h264_decoder_get_type ());
+
+  decproxy = gst_element_factory_make ("decproxy", "decproxy");
+  fail_unless (decproxy != NULL, "Failed to create decproxy element");
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (decproxy, bus);
+
+  /* setup caps */
+  caps_list[0] =
+      gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
+      "byte-stream", NULL);
+  caps_list[1] =
+      gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
+      "avc", NULL);
+  caps_list[2] =
+      gst_caps_new_simple ("video/x-h264", "stream-format", G_TYPE_STRING,
+      "byte-stream", "alignment", G_TYPE_STRING, "nal", NULL);
+
+  fail_unless (gst_element_send_event (decproxy,
+          gst_event_new_stream_start ("test")));
+
+  /*
+   * pushs caps event 3 times.
+   * Then, passed media-info from caps should be confirmed by bus message.
+   */
+  for (i = 0; i < 3; i++) {
+    fail_unless (gst_element_send_event (decproxy,
+            gst_event_new_caps (caps_list[i])));
+
+    message = gst_bus_poll (bus, GST_MESSAGE_APPLICATION, 2 * GST_SECOND);
+    fail_unless (message != NULL, "Failed to receive media-info msg");
+    if (gst_message_has_name (message, "media-info")) {
+      const GstStructure *s1;
+      GstStructure *s2;
+
+      s1 = gst_message_get_structure (message);
+      s2 = gst_caps_get_structure (caps_list[i], 0);
+      fail_unless (gst_structure_foreach (s1, compare_media_field, s2),
+          "Found not matched value");
+
+      if (i == 0) {
+        /* puch active event to generate actual decoder element */
+        s = gst_structure_new ("acquired-resource",
+            "active", G_TYPE_BOOLEAN, TRUE, NULL);
+        fail_if (s == NULL);
+        fail_unless (gst_element_send_event (decproxy,
+                gst_event_new_custom (GST_EVENT_CUSTOM_UPSTREAM, s)));
+      }
+    }
+    gst_message_unref (message);
+
+
+  }
+
+  /* cleanup */
+  gst_element_set_bus (decproxy, NULL);
+  gst_object_unref (bus);
+  for (i = 0; i < 3; i++)
+    gst_caps_unref (caps_list[i]);
+  gst_object_unref (decproxy);
+}
+
+GST_END_TEST;
+
+
 static GstStaticPadTemplate src_pad_template =
     GST_STATIC_PAD_TEMPLATE ("src", GST_PAD_SRC,
     GST_PAD_ALWAYS,
@@ -204,14 +224,13 @@ GST_START_TEST (test_active_decodable_element)
       gst_fake_h264_decoder_get_type ());
 
   feature =
-      gst_registry_find_feature (gst_registry_get (), "vdecproxy",
+      gst_registry_find_feature (gst_registry_get (), "decproxy",
       GST_TYPE_ELEMENT_FACTORY);
-  fail_unless (feature != NULL, "Failed to get feature of vdecproxy");
+  fail_unless (feature != NULL, "Failed to get feature of decproxy");
   gst_plugin_feature_set_rank (feature, GST_RANK_PRIMARY + 100);
 
-  decproxy = gst_element_factory_make ("vdecproxy", "vdecproxy");
+  decproxy = gst_element_factory_make ("decproxy", "decproxy");
   fail_unless (decproxy != NULL, "Failed to create decproxy element");
-  g_object_set (decproxy, "block", 1, NULL);
 
   /* link srcpad and decproxy */
   mysrcpad = gst_check_setup_src_pad (decproxy, &src_pad_template);
@@ -226,6 +245,9 @@ GST_START_TEST (test_active_decodable_element)
   gst_caps_unref (caps_srcpad);
   gst_caps_unref (caps_sinkpad);
   gst_object_unref (sinkpad);
+
+  fail_unless (gst_element_send_event (decproxy,
+          gst_event_new_stream_start ("test")));
 
   /* push caps */
   caps = gst_caps_new_empty_simple ("video/x-h264");
@@ -417,7 +439,7 @@ decodebin_element_added_cb (GstBin * decodebin, GstElement * element,
 {
   gboolean *deployed_decproxy = user_data;
 
-  if (g_strrstr (GST_ELEMENT_NAME (element), "vdecproxy")) {
+  if (g_strrstr (GST_ELEMENT_NAME (element), "decproxy")) {
     g_mutex_lock (&deploy_mutex);
     vdec = element;
     *deployed_decproxy = TRUE;
@@ -425,7 +447,6 @@ decodebin_element_added_cb (GstBin * decodebin, GstElement * element,
     g_mutex_unlock (&deploy_mutex);
   }
 }
-
 
 GST_START_TEST (test_deploy_at_decodebin)
 {
@@ -445,7 +466,7 @@ GST_START_TEST (test_deploy_at_decodebin)
       gst_fake_h264_parser_get_type ());
   gst_element_register (NULL, "fakeh264dec", GST_RANK_PRIMARY + 99,
       gst_fake_h264_decoder_get_type ());
-  feature = gst_registry_find_feature (gst_registry_get (), "vdecproxy",
+  feature = gst_registry_find_feature (gst_registry_get (), "decproxy",
       GST_TYPE_ELEMENT_FACTORY);
   gst_plugin_feature_set_rank (feature, GST_RANK_PRIMARY + 100);
 
