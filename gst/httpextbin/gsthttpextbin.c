@@ -608,28 +608,31 @@ gst_http_ext_bin_uri_set_uri (GstURIHandler * handler, const gchar * uri,
     GError ** error)
 {
   gboolean ret = TRUE;
-  GstHttpExtBin *bin;
+  GstHttpExtBin *bin = GST_HTTP_EXT_BIN (handler);
   GstState current_state;
 
   if (!uri) {
     GST_WARNING_OBJECT (bin, "uri to set is empty");
-    return FALSE;
+    ret = FALSE;
+    goto uri_invalid;
   }
 
-  bin = GST_HTTP_EXT_BIN (handler);
   current_state = GST_STATE (bin);
 
   /* check bin's state */
   if (current_state == GST_STATE_PAUSED || current_state == GST_STATE_PLAYING) {
     GST_WARNING_OBJECT (bin, "state of bin is %s",
         gst_element_state_get_name (current_state));
-    return FALSE;
+    ret = FALSE;
+    goto uri_invalid;
   }
 
   /* set original uri */
   g_free (bin->uri);
   bin->uri = g_strdup (uri);
-  return TRUE;
+
+uri_invalid:
+  return ret;
 }
 
 static void
