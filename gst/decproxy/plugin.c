@@ -3,18 +3,13 @@
 #endif
 
 #include <gst/gst.h>
-#include "gstvdecproxy.h"
-#include "gstadecproxy.h"
+#include "gstdecproxy.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "vdecproxy", GST_RANK_NONE,
-          GST_TYPE_VDEC_PROXY))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "adecproxy", GST_RANK_NONE,
-          GST_TYPE_ADEC_PROXY))
+  if (!gst_element_register (plugin, "decproxy", GST_RANK_NONE,
+          GST_TYPE_DEC_PROXY))
     return FALSE;
 
   return TRUE;

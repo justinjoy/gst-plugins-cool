@@ -28,6 +28,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+GST_DEBUG_CATEGORY_STATIC (dec_proxy_debug);
+#define GST_CAT_DEFAULT dec_proxy_debug
+
+static GstStaticPadTemplate gst_dec_proxy_sink_pad_template =
+    GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS (DECODE_VIDEO_CAPS ";" DECODE_AUDIO_CAPS));
+
+static GstStaticPadTemplate gst_dec_proxy_src_pad_template =
+    GST_STATIC_PAD_TEMPLATE ("src", GST_PAD_SRC,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS ("audio/x-raw;video/x-raw"));
+
+#define gst_dec_proxy_parent_class parent_class
+G_DEFINE_TYPE (GstDecProxy, gst_dec_proxy, GST_TYPE_BIN);
+
 static void gst_dec_proxy_dispose (GObject * obj);
 static void gst_dec_proxy_finalize (GObject * obj);
 static void gst_dec_proxy_set_property (GObject * object, guint prop_id,
@@ -47,15 +63,15 @@ static gboolean gst_dec_proxy_src_event (GstPad * pad, GstObject * parent,
 static gboolean gst_dec_proxy_handle_src_query (GstPad * pad,
     GstObject * parent, GstQuery * query);
 
-GST_DEBUG_CATEGORY_STATIC (dec_proxy_debug);
-#define GST_CAT_DEFAULT dec_proxy_debug
 
-static void gst_dec_proxy_class_init (GstDecProxyClass * klass);
-static void gst_dec_proxy_init (GstDecProxy * decproxy,
-    GstDecProxyClass * g_class);
+//static void gst_dec_proxy_class_init (GstDecProxyClass * klass);
+//static void gst_dec_proxy_init (GstDecProxy * decproxy,
+//    GstDecProxyClass * g_class);
 
-static GstElementClass *parent_class;
+//static GstElementClass *parent_class;
 
+
+#if 0
 /* we can't use G_DEFINE_ABSTRACT_TYPE because we need the klass in the _init
  * method to get to the padtemplates */
 GType
@@ -75,6 +91,7 @@ gst_dec_proxy_get_type (void)
   }
   return dec_proxy_type;
 }
+#endif
 
 enum
 {
@@ -117,14 +134,24 @@ gst_dec_proxy_class_init (GstDecProxyClass * klass)
 
   element_class->change_state = GST_DEBUG_FUNCPTR (gst_dec_proxy_change_state);
 
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&gst_dec_proxy_sink_pad_template));
+  gst_element_class_add_pad_template (element_class,
+      gst_static_pad_template_get (&gst_dec_proxy_src_pad_template));
+
+  gst_element_class_set_static_metadata (element_class,
+      "Proxy for Decoders", "Codec/Decoder/Bin",
+      "Acutal decoder deployment controller by resource permissions",
+      "Wonchul Lee <wonchul86.lee@lge.com>, HoonHee Lee <hoonhee.lee@lge.com>");
+
   GST_DEBUG_CATEGORY_INIT (dec_proxy_debug, "decproxy", 0, "Decoder Proxy Bin");
 }
 
 static void
-gst_dec_proxy_init (GstDecProxy * decproxy, GstDecProxyClass * g_class)
+gst_dec_proxy_init (GstDecProxy * decproxy)
 {
   GstPadTemplate *sink_pad_template, *src_pad_template;
-  GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
+  GstElementClass *element_class = GST_ELEMENT_GET_CLASS (decproxy);
 
   /* get sinkpad template */
   sink_pad_template =

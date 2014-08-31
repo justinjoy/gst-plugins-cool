@@ -65,16 +65,13 @@ main (gint argc, gchar * argv[])
   GstBus *bus;
   guint bus_watch_id;
   gchar *uri;
-  GstPluginFeature *vfeature, *afeature;
+  GstPluginFeature *feature;
 
   gst_init (&argc, &argv);
 
-  vfeature = gst_registry_find_feature (gst_registry_get (), "vdecproxy",
+  feature = gst_registry_find_feature (gst_registry_get (), "decproxy",
       GST_TYPE_ELEMENT_FACTORY);
-  gst_plugin_feature_set_rank (vfeature, GST_RANK_PRIMARY + 10);
-  afeature = gst_registry_find_feature (gst_registry_get (), "adecproxy",
-      GST_TYPE_ELEMENT_FACTORY);
-  gst_plugin_feature_set_rank (afeature, GST_RANK_PRIMARY + 10);
+  gst_plugin_feature_set_rank (feature, GST_RANK_PRIMARY + 10);
 
   if (argc < 2) {
     g_print ("usage: %s <media file or uri>\n", argv[0]);
