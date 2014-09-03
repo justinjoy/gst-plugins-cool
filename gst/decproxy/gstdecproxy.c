@@ -251,27 +251,15 @@ posting_media_info_msg (GstDecProxy * decproxy, GstCaps * caps,
   GstStructure *media_info;
   GstMessage *message;
   const gchar *structure_name;
-  gint type = 0;
 
   GST_DEBUG_OBJECT (decproxy, "getting caps of %" GST_PTR_FORMAT, caps);
 
   s = gst_caps_get_structure (caps, 0);
   structure_name = gst_structure_get_name (s);
 
-  if (g_str_has_prefix (structure_name, "video")
-      || g_str_has_prefix (structure_name, "image")) {
-    type = STREAM_VIDEO;
-  } else if (g_str_has_prefix (structure_name, "audio")) {
-    type = STREAM_AUDIO;
-  } else if (g_str_has_prefix (structure_name, "text/")
-      || g_str_has_prefix (structure_name, "application/")
-      || g_str_has_prefix (structure_name, "subpicture/")) {
-    type = STREAM_TEXT;
-  }
-
   media_info = gst_structure_new ("media-info",
       "stream-id", G_TYPE_STRING, stream_id,
-      "type", G_TYPE_INT, type,
+      "type", G_TYPE_INT, decproxy->stream_type,
       "mime-type", G_TYPE_STRING, g_strdup (structure_name), NULL);
   /* append media information from caps's structure to media-info */
   gst_structure_foreach (s, append_media_field, media_info);
@@ -314,6 +302,7 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       gchar *stream_id;
       GstStructure *s;
       const gchar *name;
+      const gchar *structure_name;
 
       gst_event_parse_caps (event, &caps);
       GST_INFO_OBJECT (decproxy, "getting caps of %" GST_PTR_FORMAT, caps);
@@ -324,24 +313,36 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
         decproxy->caps = gst_caps_ref (caps);
       GST_DEC_PROXY_UNLOCK (decproxy);
 
+      s = gst_caps_get_structure (caps, 0);
+      structure_name = gst_structure_get_name (s);
+
+      if (g_str_has_prefix (structure_name, "video")
+          || g_str_has_prefix (structure_name, "image")) {
+        decproxy->stream_type = STREAM_VIDEO;
+      } else if (g_str_has_prefix (structure_name, "audio")) {
+        decproxy->stream_type = STREAM_AUDIO;
+      } else if (g_str_has_prefix (structure_name, "text/")
+          || g_str_has_prefix (structure_name, "application/")
+          || g_str_has_prefix (structure_name, "subpicture/")) {
+        decproxy->stream_type = STREAM_TEXT;
+      }
+
       /* post media-info */
       stream_id = gst_pad_get_stream_id (pad);
       posting_media_info_msg (decproxy, caps, stream_id);
-
-      s = gst_caps_get_structure (decproxy->caps, 0);
-      name = gst_structure_get_name (s);
 
       gst_pad_push_event (decproxy->srcpad,
           gst_event_new_stream_start (stream_id));
       g_free (stream_id);
 
       //FIXME: change to better way
-      if (g_strrstr (name, "video/"))
+      if (decproxy->stream_type == STREAM_VIDEO) {
         gst_pad_set_caps (decproxy->srcpad,
             gst_caps_from_string ("video/x-raw"));
-      else if (g_strrstr (name, "audio/"))
+      } else if (decproxy->stream_type == STREAM_AUDIO) {
         gst_pad_set_caps (decproxy->srcpad,
             gst_caps_from_string ("audio/x-raw"));
+      }
 
       res = gst_pad_event_default (pad, parent, event);
 
@@ -474,6 +475,16 @@ setup_decoder (GstDecProxy * decproxy)
     GST_WARNING_OBJECT (decproxy, "Could not create a decoder element ");
     return FALSE;
   }
+  // FIXME: this is just for legacy sink property interface.
+  if (decproxy->stream_type == STREAM_AUDIO) {
+    g_object_set (decproxy->dec_elem, "index", decproxy->acquired_port, NULL);
+    GST_DEBUG_OBJECT (decproxy->dec_elem, "Auido index set as %d",
+        decproxy->acquired_port);
+  } else if (decproxy->stream_type == STREAM_VIDEO) {
+    g_object_set (decproxy->dec_elem, "vdec-ch", decproxy->acquired_port, NULL);
+    GST_DEBUG_OBJECT (decproxy->dec_elem, "Video channel set as %d",
+        decproxy->acquired_port);
+  }
 
   /* add decoder element to decproxy */
   if (!(gst_bin_add (GST_BIN_CAST (decproxy), decproxy->dec_elem))) {
@@ -569,6 +580,12 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
         const GstStructure *st = gst_event_get_structure (event);
 
         gst_structure_get_boolean (st, "active", &decproxy->active);
+
+        // FIXME: this is just for legacy property interface.
+        if (decproxy->stream_type == STREAM_AUDIO)
+          gst_structure_get_int (st, "audio-port", &decproxy->acquired_port);
+        else if (decproxy->stream_type == STREAM_VIDEO)
+          gst_structure_get_int (st, "video-port", &decproxy->acquired_port);
 
         GST_INFO_OBJECT (decproxy,
             "received event : %s, active : %d",

@@ -104,6 +104,9 @@ struct _GstDecProxy
   gboolean block;
   gboolean active;
   gboolean pending_remove_probe;
+
+  guint stream_type;
+  guint acquired_port;
 };
 
 struct _GstDecProxyClass
