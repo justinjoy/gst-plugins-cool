@@ -34,6 +34,14 @@
     "subpicture/x-dvb;" \
     "subpicture/x-xsub"
 
+enum
+{
+  STREAM_AUDIO = 0,
+  STREAM_VIDEO,
+  STREAM_TEXT,
+  STREAM_LAST
+};
+
 static GstStaticPadTemplate gst_media_info_sink_pad_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
@@ -116,6 +124,50 @@ gst_media_info_init (GstMediaInfo * info)
 }
 
 static gboolean
+append_media_field (GQuark field_id, const GValue * value, gpointer user_data)
+{
+  GstStructure *media = user_data;
+  gchar *value_str = gst_value_serialize (value);
+
+  GST_DEBUG_OBJECT (media, "field [%s:%s]", g_quark_to_string (field_id),
+      value_str);
+  gst_structure_id_set_value (media, field_id, value);
+
+  g_free (value_str);
+
+  return TRUE;
+}
+
+static void
+posting_media_info_msg (GstMediaInfo * info, GstCaps * caps, gchar * stream_id)
+{
+  GstStructure *s;
+  GstStructure *media_info;
+  GstMessage *message;
+  const gchar *structure_name;
+
+  GST_DEBUG_OBJECT (info, "getting caps of %" GST_PTR_FORMAT, caps);
+
+  s = gst_caps_get_structure (caps, 0);
+  structure_name = gst_structure_get_name (s);
+
+  media_info =
+      gst_structure_new ("media-info", "stream-id", G_TYPE_STRING, stream_id,
+      "type", G_TYPE_INT, STREAM_TEXT, "mime-type", G_TYPE_STRING,
+      structure_name, NULL);
+  /* append media information from caps's structure to media-info */
+  gst_structure_foreach (s, append_media_field, media_info);
+  GST_INFO_OBJECT (info, "create new media info : %" GST_PTR_FORMAT,
+      media_info);
+
+  message =
+      gst_message_new_custom (GST_MESSAGE_APPLICATION, GST_OBJECT (info),
+      media_info);
+  gst_element_post_message (GST_ELEMENT_CAST (info), message);
+  GST_INFO_OBJECT (info, "posted media-info message");
+}
+
+static gboolean
 gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
   GstMediaInfo *info;
@@ -127,9 +179,17 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
+      gchar *stream_id;
+
       gst_event_parse_caps (event, &caps);
       GST_DEBUG_OBJECT (pad, "got caps %" GST_PTR_FORMAT, caps);
       gst_media_info_set_caps (info, caps);
+
+      /* post media-info */
+      stream_id = gst_pad_get_stream_id (pad);
+      posting_media_info_msg (info, caps, stream_id);
+      g_free (stream_id);
+
       gst_event_unref (event);
     }
       break;
