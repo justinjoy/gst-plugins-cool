@@ -225,6 +225,7 @@ tests/Makefile
 tests/check/Makefile
 tests/examples/Makefile
 tests/examples/rm/Makefile
+tests/examples/mediainfo/Makefile
 m4/Makefile
 )
 AC_OUTPUT

@@ -1,5 +1,7 @@
 SUBDIRS = \
-	rm
+	rm \
+	mediainfo
 
 DIST_SUBDIRS = \
-	rm
+	rm \
+	mediainfo
