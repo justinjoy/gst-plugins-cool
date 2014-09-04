@@ -4,12 +4,17 @@
 
 #include <gst/gst.h>
 #include "gstdecproxy.h"
+#include "gstmediainfo.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
   if (!gst_element_register (plugin, "decproxy", GST_RANK_NONE,
           GST_TYPE_DEC_PROXY))
+    return FALSE;
+
+  if (!gst_element_register (plugin, "mediainfo", GST_RANK_NONE,
+          GST_TYPE_MEDIA_INFO))
     return FALSE;
 
   return TRUE;
