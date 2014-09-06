@@ -221,6 +221,9 @@ gst/Makefile
 gst/decproxy/Makefile
 gst/httpextbin/Makefile
 gst/dynappsrc/Makefile
+gst-libs/Makefile
+gst-libs/gst/Makefile
+gst-libs/gst/cool/Makefile
 tests/Makefile
 tests/check/Makefile
 tests/examples/Makefile

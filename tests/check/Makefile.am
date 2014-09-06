@@ -29,7 +29,8 @@ STATE_IGNORE_ELEMENTS =
 TESTS = $(check_PROGRAMS)
 
 check_PROGRAMS = \
-	elements/decproxy
+	elements/decproxy \
+	cool/gstcool
 
 # these tests don't even pass
 noinst_PROGRAMS =
@@ -54,3 +55,13 @@ VALGRIND_TESTS_DISABLE = $(VALGRIND_TO_FIX)
 elements_decproxy_CFLAGS = \
 	$(GST_PLUGINS_BASE_CFLAGS) \
 	$(AM_CFLAGS)
+
+cool_gstcool_CFLAGS = \
+        -DGST_COOL_CONFIG_PATH=\""$(top_builddir)/config/m14tv/gstcool.conf\"" \
+	$(GST_PLUGINS_BASE_CFLAGS) \
+	$(AM_CFLAGS)
+
+cool_gstcool_LDADD = \
+        $(top_builddir)/gst-libs/gst/cool/libgstcool-@GST_API_VERSION@.la \
+        $(LDADD)
+
