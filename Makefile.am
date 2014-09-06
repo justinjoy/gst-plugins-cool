@@ -1,7 +1,7 @@
 DISTCHECK_CONFIGURE_FLAGS=--enable-gtk-doc
-SUBDIRS = gst gst-libs m4 common tests
+SUBDIRS = pkgconfig gst gst-libs m4 common tests
 
-DIST_SUBDIRS = gst gst-libs m4 common tests
+DIST_SUBDIRS = pkgconfig gst gst-libs m4 common tests
 
 include $(top_srcdir)/common/win32.mak
 

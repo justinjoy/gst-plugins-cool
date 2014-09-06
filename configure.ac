@@ -224,6 +224,9 @@ gst/dynappsrc/Makefile
 gst-libs/Makefile
 gst-libs/gst/Makefile
 gst-libs/gst/cool/Makefile
+pkgconfig/Makefile
+pkgconfig/gstreamer-cool.pc
+pkgconfig/gstreamer-cool-uninstalled.pc
 tests/Makefile
 tests/check/Makefile
 tests/examples/Makefile
