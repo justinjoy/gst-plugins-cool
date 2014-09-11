@@ -27,6 +27,9 @@
 G_BEGIN_DECLS
 
 void            gst_cool_init                   (int *argc, char **argv[]);
+gboolean        gst_cool_init_check             (int *argc, char **argv[],
+                                                 GError ** err); 
+
 GKeyFile *      gst_cool_get_configuration      (void);
 
 GstStructure *  gst_cool_caps_to_info           (GstCaps *caps);

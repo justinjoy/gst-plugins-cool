@@ -24,6 +24,7 @@
 
 #include "gstcool.h"
 
+#include <stdio.h>
 
 static gboolean gst_cool_initialized = FALSE;
 
@@ -45,10 +46,11 @@ gst_cool_get_configuration (void)
   return config;
 }
 
-void
-gst_cool_init (int *argc, char **argv[])
+gboolean
+gst_cool_init_check (int *argc, char **argv[], GError ** err)
 {
   const gchar *cool_config_file;
+  gboolean res;
 
   // TODO: configuration should be loaded by given path
   // static const gchar *config_name[] = { "gstcool.conf", NULL };
@@ -56,10 +58,14 @@ gst_cool_init (int *argc, char **argv[])
 
   if (gst_cool_initialized) {
     GST_DEBUG ("already initialized gst-cool");
-    return;
+    return TRUE;
   }
 
-  gst_init (argc, argv);
+  res = gst_init_check (argc, argv, err);
+
+  if (!res) {
+    return FALSE;
+  }
 
   if ((cool_config_file = g_getenv ("GST_COOL_CONFIG")) != NULL) {
     GST_DEBUG ("loading gst-cool config from GST_COOL_CONFIG: %s",
@@ -70,7 +76,23 @@ gst_cool_init (int *argc, char **argv[])
 
   gst_cool_load_configuration (cool_config_file);
 
-  gst_cool_initialized = TRUE;
+  gst_cool_initialized = res;
+
+  return res;
+}
+
+void
+gst_cool_init (int *argc, char **argv[])
+{
+  GError *err = NULL;
+
+  if (!gst_cool_init_check (argc, argv, &err)) {
+    g_print ("Failed to initialize GStreamer Cool: %s\n",
+        err ? err->message : "Unknown");
+    if (err)
+      g_error_free (err);
+    exit (1);
+  }
 }
 
 static void
