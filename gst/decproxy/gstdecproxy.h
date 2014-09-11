@@ -101,7 +101,6 @@ struct _GstDecProxy
   gulong block_id;
   gulong notify_caps_id;
 
-  gboolean block;
   gboolean active;
   gboolean pending_remove_probe;
 

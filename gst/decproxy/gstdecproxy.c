@@ -46,8 +46,6 @@ G_DEFINE_TYPE (GstDecProxy, gst_dec_proxy, GST_TYPE_BIN);
 
 static void gst_dec_proxy_dispose (GObject * obj);
 static void gst_dec_proxy_finalize (GObject * obj);
-static void gst_dec_proxy_set_property (GObject * object, guint prop_id,
-    const GValue * value, GParamSpec * spec);
 static void gst_dec_proxy_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * spec);
 static GstStateChangeReturn gst_dec_proxy_change_state (GstElement * element,
@@ -97,7 +95,6 @@ enum
 {
   PROP_0,
   PROP_ACTUAL_DECODER,
-  PROP_BLOCK,
   PROP_LAST
 };
 
@@ -117,7 +114,6 @@ gst_dec_proxy_class_init (GstDecProxyClass * klass)
 
   parent_class = g_type_class_peek_parent (klass);
 
-  gobject_klass->set_property = gst_dec_proxy_set_property;
   gobject_klass->get_property = gst_dec_proxy_get_property;
 
   gobject_klass->dispose = gst_dec_proxy_dispose;
@@ -127,10 +123,6 @@ gst_dec_proxy_class_init (GstDecProxyClass * klass)
       g_param_spec_object ("actual-decoder", "Actual Decoder",
           "the actual element to decode",
           GST_TYPE_ELEMENT, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_klass, PROP_BLOCK,
-      g_param_spec_boolean ("block", "Block Stream", "", 0,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   element_class->change_state = GST_DEBUG_FUNCPTR (gst_dec_proxy_change_state);
 
@@ -198,7 +190,6 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
 
   decproxy->block_id = 0;
   decproxy->caps = NULL;
-  decproxy->block = TRUE;
   decproxy->pending_remove_probe = FALSE;
 
   g_mutex_init (&decproxy->lock);
@@ -301,7 +292,6 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GstCaps *caps;
       gchar *stream_id;
       GstStructure *s;
-      const gchar *name;
       const gchar *structure_name;
 
       gst_event_parse_caps (event, &caps);
@@ -347,7 +337,7 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       res = gst_pad_event_default (pad, parent, event);
 
       GST_DEC_PROXY_LOCK (decproxy);
-      if (decproxy->block && !decproxy->block_id) {
+      if (!decproxy->block_id) {
         decproxy->block_id =
             gst_pad_add_probe (pad,
             GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, sinkpad_block_cb, decproxy,
@@ -673,27 +663,6 @@ gst_dec_proxy_get_property (GObject * object, guint prop_id, GValue * value,
       GST_OBJECT_LOCK (decproxy);
       g_value_set_object (value, decproxy->dec_elem);
       GST_OBJECT_UNLOCK (decproxy);
-      break;
-    case PROP_BLOCK:
-      g_value_set_boolean (value, decproxy->block);
-      break;
-
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
-  }
-}
-
-
-static void
-gst_dec_proxy_set_property (GObject * object, guint prop_id,
-    const GValue * value, GParamSpec * pspec)
-{
-  GstDecProxy *decproxy = GST_DEC_PROXY (object);
-
-  switch (prop_id) {
-    case PROP_BLOCK:
-      decproxy->block = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
