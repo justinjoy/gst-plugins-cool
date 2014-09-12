@@ -24,7 +24,7 @@
 
 #include "gstmediainfo.h"
 
-#define TEXT_CAPS \
+#define SINK_CAPS \
     "text/x-raw;" \
     "text/x-avi-internal;" \
     "text/x-avi-unknown;" \
@@ -32,7 +32,8 @@
     "application/x-ssa;" \
     "subpicture/x-dvd;" \
     "subpicture/x-dvb;" \
-    "subpicture/x-xsub"
+    "subpicture/x-xsub;" \
+    "audio/x-raw"
 
 enum
 {
@@ -46,14 +47,14 @@ static GstStaticPadTemplate gst_media_info_sink_pad_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (TEXT_CAPS)
+    GST_STATIC_CAPS (SINK_CAPS)
     );
 
 static GstStaticPadTemplate gst_media_info_src_pad_template =
     GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("subtitle/x-media;")
+    GST_STATIC_CAPS ("subtitle/x-media;audio/x-media")
     );
 
 GST_DEBUG_CATEGORY_STATIC (media_info_debug);
@@ -96,8 +97,8 @@ gst_media_info_class_init (GstMediaInfoClass * klass)
       gst_static_pad_template_get (&gst_media_info_sink_pad_template));
 
   gst_element_class_set_static_metadata (element_class,
-      "Media Info converter for text", "Codec/Parser", "Pass data to decoder",
-      "HoonHee Lee <hoonhee.lee@lge.com>");
+      "Media Info converter for text", "Codec/Parser/Decoder/Audio",
+      "Pass data to decoder", "HoonHee Lee <hoonhee.lee@lge.com>");
 
   element_class->change_state = GST_DEBUG_FUNCPTR (gst_media_info_change_state);
 
@@ -180,9 +181,21 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gchar *stream_id;
+      GstStructure *s;
+      const gchar *structure_name;
 
       gst_event_parse_caps (event, &caps);
       GST_DEBUG_OBJECT (pad, "got caps %" GST_PTR_FORMAT, caps);
+
+      s = gst_caps_get_structure (caps, 0);
+      structure_name = gst_structure_get_name (s);
+
+      if (g_str_has_prefix (structure_name, "audio/"))
+        gst_pad_set_caps (info->srcpad, gst_caps_from_string ("audio/x-media"));
+      else
+        gst_pad_set_caps (info->srcpad,
+            gst_caps_from_string ("subtitle/x-media"));
+
       gst_media_info_set_caps (info, caps);
 
       /* post media-info */

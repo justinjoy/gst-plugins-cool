@@ -39,7 +39,7 @@ static GstStaticPadTemplate gst_dec_proxy_sink_pad_template =
 static GstStaticPadTemplate gst_dec_proxy_src_pad_template =
     GST_STATIC_PAD_TEMPLATE ("src", GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("audio/x-raw;video/x-raw"));
+    GST_STATIC_CAPS ("audio/x-media;video/x-raw"));
 
 #define gst_dec_proxy_parent_class parent_class
 G_DEFINE_TYPE (GstDecProxy, gst_dec_proxy, GST_TYPE_BIN);
