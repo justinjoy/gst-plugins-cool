@@ -24,7 +24,7 @@
 
 #include "gstcool.h"
 
-#include <stdio.h>
+#include <stdlib.h>
 
 static gboolean gst_cool_initialized = FALSE;
 
@@ -56,15 +56,15 @@ gst_cool_init_check (int *argc, char **argv[], GError ** err)
   // static const gchar *config_name[] = { "gstcool.conf", NULL };
   // static const gchar *env_config_name[] = { "GST_COOL_CONFIG_DIR", NULL };
 
-  if (gst_cool_initialized) {
-    GST_DEBUG ("already initialized gst-cool");
-    return TRUE;
-  }
-
   res = gst_init_check (argc, argv, err);
 
   if (!res) {
     return FALSE;
+  }
+
+  if (gst_cool_initialized) {
+    GST_DEBUG ("already initialized gst-cool");
+    return TRUE;
   }
 
   if ((cool_config_file = g_getenv ("GST_COOL_CONFIG")) != NULL) {
