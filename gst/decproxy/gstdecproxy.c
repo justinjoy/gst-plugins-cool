@@ -60,8 +60,9 @@ static gboolean gst_dec_proxy_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 static gboolean gst_dec_proxy_handle_src_query (GstPad * pad,
     GstObject * parent, GstQuery * query);
-
-
+static GstFlowReturn
+gst_dec_proxy_chain (GstPad * pad, GstObject * parent, GstBuffer * buf);
+static void remove_decoder (GstDecProxy * decproxy);
 //static void gst_dec_proxy_class_init (GstDecProxyClass * klass);
 //static void gst_dec_proxy_init (GstDecProxy * decproxy,
 //    GstDecProxyClass * g_class);
@@ -191,6 +192,7 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
   decproxy->block_id = 0;
   decproxy->caps = NULL;
   decproxy->pending_remove_probe = FALSE;
+  decproxy->state_flag = GST_STATE_DEC_PROXY_NONE;
 
   g_mutex_init (&decproxy->lock);
 }
@@ -556,6 +558,59 @@ caps_notify_cb (GstPad * pad, GParamSpec * unused, GstDecProxy * decproxy)
   }
 }
 
+/*
+  * This is event block probe and remove decoder.
+  * Checked EOS event.
+  * The decproxy change to deactive, we have to remove decoder element after the EOS came.
+  */
+static GstPadProbeReturn
+deactive_event_probe_cb (GstPad * pad, GstPadProbeInfo * info,
+    gpointer user_data)
+{
+  GstDecProxy *decproxy = GST_DEC_PROXY (user_data);
+
+  if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_DATA (info)) != GST_EVENT_EOS)
+    return GST_PAD_PROBE_OK;
+  GST_INFO_OBJECT (decproxy, "deactive_event_probe_cb");
+  GST_DEC_PROXY_LOCK (decproxy);
+  gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
+  remove_decoder (decproxy);
+  GST_DEC_PROXY_UNLOCK (decproxy);
+  return GST_PAD_PROBE_DROP;
+}
+
+/*
+  * If the decproxy active mode is changed active to deactive,
+  * then this function call back.
+  * Add event probe for setting element state to NULL.
+  * For this, we need to push EOS event firstly to delete all data.
+  */
+static GstPadProbeReturn
+multi_block_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
+{
+  GstDecProxy *decproxy = GST_DEC_PROXY (user_data);
+  GstPad *dec_elem_sink, *dec_elem_src;
+  GST_INFO_OBJECT (pad, "call multi_block_cb");
+
+  if (decproxy->state_flag == GST_STATE_DEC_PROXY_DEACTIVE
+      && decproxy->dec_elem) {
+    GST_DEC_PROXY_LOCK (decproxy);
+    dec_elem_sink = gst_element_get_static_pad (decproxy->dec_elem, "sink");
+    dec_elem_src = gst_element_get_static_pad (decproxy->dec_elem, "src");
+
+    /* remove the probe first */
+    gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
+    gst_pad_add_probe (dec_elem_src,
+        GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
+        deactive_event_probe_cb, decproxy, NULL);
+    GST_DEC_PROXY_UNLOCK (decproxy);
+    gst_pad_send_event (dec_elem_sink, gst_event_new_eos ());
+    gst_object_unref (dec_elem_src);
+    gst_object_unref (dec_elem_sink);
+  }
+
+  return GST_PAD_PROBE_OK;
+}
 
 static gboolean
 gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
@@ -573,9 +628,9 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
         // FIXME: this is just for legacy property interface.
         if (decproxy->stream_type == STREAM_AUDIO)
-          gst_structure_get_int (st, "audio-port", &decproxy->acquired_port);
+          gst_structure_get_uint (st, "audio-port", &decproxy->acquired_port);
         else if (decproxy->stream_type == STREAM_VIDEO)
-          gst_structure_get_int (st, "video-port", &decproxy->acquired_port);
+          gst_structure_get_uint (st, "video-port", &decproxy->acquired_port);
 
         GST_INFO_OBJECT (decproxy,
             "received event : %s, active : %d",
@@ -594,7 +649,27 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
           break;
         }
 
-        if (decproxy->active) {
+        if (decproxy->active
+            && (decproxy->state_flag != GST_STATE_DEC_PROXY_ACTIVE)) {
+          GST_INFO_OBJECT (pad, "active pad %s:%s", GST_DEBUG_PAD_NAME (pad));
+          GST_DEC_PROXY_LOCK (decproxy);
+          if (decproxy->state_flag == GST_STATE_DEC_PROXY_DEACTIVE) {
+            /* Pad status changed deactive to active. */
+            GST_DEBUG_OBJECT (pad, "this pad switched [deactive] to [active]");
+            if (!decproxy->block_id) {
+              decproxy->block_id =
+                  gst_pad_add_probe (decproxy->sinkpad,
+                  GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, multi_block_cb, decproxy,
+                  NULL);
+            }
+            /* remove chain function and change to default chain. */
+            gst_pad_set_chain_function (decproxy->sinkpad,
+                gst_proxy_pad_chain_default);
+          }
+          if (decproxy->state_flag == GST_STATE_DEC_PROXY_NONE)
+            GST_DEBUG_OBJECT (pad, "this pad switched [null] to [active]");
+          GST_DEC_PROXY_UNLOCK (decproxy);
+
           if (!setup_decoder (decproxy))
             goto decoder_element_failed;
 
@@ -607,11 +682,26 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
             gst_pad_remove_probe (decproxy->sinkpad, decproxy->block_id);
             decproxy->block_id = 0;
           }
-
+          decproxy->state_flag = GST_STATE_DEC_PROXY_ACTIVE;
+          GST_DEC_PROXY_UNLOCK (decproxy);
+        } else if (!decproxy->active
+            && (decproxy->state_flag != GST_STATE_DEC_PROXY_DEACTIVE)) {
+          GST_INFO_OBJECT (pad, "deactive pad %s:%s", GST_DEBUG_PAD_NAME (pad));
+          GST_DEC_PROXY_LOCK (decproxy);
+          if (decproxy->state_flag == GST_STATE_DEC_PROXY_ACTIVE) {
+            /* Pad status changed active to deactive. */
+            GST_DEBUG_OBJECT (pad, "this pad switched [active] to [deactive]");
+            gst_pad_add_probe (decproxy->sinkpad,
+                GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, multi_block_cb, decproxy,
+                NULL);
+          }
+          if (decproxy->state_flag == GST_STATE_DEC_PROXY_NONE)
+            GST_DEBUG_OBJECT (pad, "this pad switched [null] to [deactive]");
+          gst_pad_set_chain_function (decproxy->sinkpad, gst_dec_proxy_chain);
+          decproxy->state_flag = GST_STATE_DEC_PROXY_DEACTIVE;
           GST_DEC_PROXY_UNLOCK (decproxy);
         }
         gst_event_unref (event);
-
       }
       break;
     }
@@ -695,4 +785,15 @@ gst_dec_proxy_change_state (GstElement * element, GstStateChange transition)
 /* ERRORS */
 failure:
   return ret;;
+}
+
+static GstFlowReturn
+gst_dec_proxy_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+{
+  GstFlowReturn res = GST_FLOW_OK;
+  GstDecProxy *decproxy = GST_DEC_PROXY (parent);
+  res = gst_pad_push (decproxy->srcpad, buf);
+  GST_DEBUG_OBJECT (decproxy->srcpad, "Returned %s", gst_flow_get_name (res));
+
+  return res;
 }

@@ -84,6 +84,13 @@ enum
   STREAM_LAST
 };
 
+enum
+{
+GST_STATE_DEC_PROXY_NONE = 0,
+GST_STATE_DEC_PROXY_ACTIVE,
+GST_STATE_DEC_PROXY_DEACTIVE
+};
+
 typedef struct _GstDecProxy GstDecProxy;
 typedef struct _GstDecProxyClass GstDecProxyClass;
 
@@ -106,6 +113,8 @@ struct _GstDecProxy
 
   guint stream_type;
   guint acquired_port;
+
+  guint state_flag;
 };
 
 struct _GstDecProxyClass
