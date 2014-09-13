@@ -476,6 +476,14 @@ setup_decoder (GstDecProxy * decproxy)
     g_object_set (decproxy->dec_elem, "vdec-ch", decproxy->acquired_port, NULL);
     GST_DEBUG_OBJECT (decproxy->dec_elem, "Video channel set as %d",
         decproxy->acquired_port);
+
+    /* set port property for video-decoder in lm15u */
+    if (g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
+            "port")) {
+      g_object_set (decproxy->dec_elem, "port", decproxy->acquired_port, NULL);
+      GST_DEBUG_OBJECT (decproxy->dec_elem, "set port[%d] to video decoder",
+          decproxy->acquired_port);
+    }
   }
 
   /* add decoder element to decproxy */
