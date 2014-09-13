@@ -636,13 +636,14 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
         // FIXME: this is just for legacy property interface.
         if (decproxy->stream_type == STREAM_AUDIO)
-          gst_structure_get_uint (st, "audio-port", &decproxy->acquired_port);
+          gst_structure_get_int (st, "audio-port", &decproxy->acquired_port);
         else if (decproxy->stream_type == STREAM_VIDEO)
-          gst_structure_get_uint (st, "video-port", &decproxy->acquired_port);
+          gst_structure_get_int (st, "video-port", &decproxy->acquired_port);
 
         GST_INFO_OBJECT (decproxy,
-            "received event : %s, active : %d",
-            GST_EVENT_TYPE_NAME (event), decproxy->active);
+            "received event : %s, active : %d, port : %d",
+            GST_EVENT_TYPE_NAME (event), decproxy->active,
+            decproxy->acquired_port);
 
         /* acquired-resource event is arrived before receiving caps event
          * on sinkpad

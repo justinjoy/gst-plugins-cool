@@ -112,7 +112,7 @@ struct _GstDecProxy
   gboolean pending_remove_probe;
 
   guint stream_type;
-  guint acquired_port;
+  gint acquired_port;
 
   guint state_flag;
 };
