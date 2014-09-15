@@ -193,6 +193,7 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
   decproxy->caps = NULL;
   decproxy->pending_remove_probe = FALSE;
   decproxy->state_flag = GST_STATE_DEC_PROXY_NONE;
+  decproxy->resource_info = NULL;
 
   g_mutex_init (&decproxy->lock);
 }
@@ -217,6 +218,11 @@ gst_dec_proxy_finalize (GObject * obj)
   GstDecProxy *decproxy = GST_DEC_PROXY (obj);
 
   g_mutex_clear (&decproxy->lock);
+
+  if (decproxy->resource_info) {
+    gst_structure_free (decproxy->resource_info);
+    decproxy->resource_info = NULL;
+  }
 
   G_OBJECT_CLASS (parent_class)->finalize (obj);
 }
@@ -486,6 +492,16 @@ setup_decoder (GstDecProxy * decproxy)
     }
   }
 
+  if (decproxy->resource_info &&
+      g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
+          "resource-info")) {
+    g_object_set (decproxy->dec_elem, "resource-info", decproxy->resource_info,
+        NULL);
+    GST_DEBUG_OBJECT (decproxy->dec_elem,
+        "set resource info to decoder, %" GST_PTR_FORMAT,
+        decproxy->resource_info);
+  }
+
   /* add decoder element to decproxy */
   if (!(gst_bin_add (GST_BIN_CAST (decproxy), decproxy->dec_elem))) {
     GST_WARNING_OBJECT (decproxy, "Couldn't add decoder element to bin");
@@ -640,10 +656,15 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
         else if (decproxy->stream_type == STREAM_VIDEO)
           gst_structure_get_int (st, "video-port", &decproxy->acquired_port);
 
+        /* store resource info for set on decoder */
+        if (!decproxy->resource_info &&
+            (gst_structure_has_field (st, "audio-port")
+                || gst_structure_has_field (st, "video-port")))
+          decproxy->resource_info = gst_structure_copy (st);
+
         GST_INFO_OBJECT (decproxy,
-            "received event : %s, active : %d, port : %d",
-            GST_EVENT_TYPE_NAME (event), decproxy->active,
-            decproxy->acquired_port);
+            "received event : %s, resource-info : %" GST_PTR_FORMAT,
+            GST_EVENT_TYPE_NAME (event), st);
 
         /* acquired-resource event is arrived before receiving caps event
          * on sinkpad

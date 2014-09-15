@@ -115,6 +115,8 @@ struct _GstDecProxy
   gint acquired_port;
 
   guint state_flag;
+
+  GstStructure *resource_info;
 };
 
 struct _GstDecProxyClass
