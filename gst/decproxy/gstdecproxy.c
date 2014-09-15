@@ -474,24 +474,7 @@ setup_decoder (GstDecProxy * decproxy)
     GST_WARNING_OBJECT (decproxy, "Could not create a decoder element ");
     return FALSE;
   }
-  // FIXME: this is just for legacy sink property interface.
-  if (decproxy->stream_type == STREAM_AUDIO) {
-    g_object_set (decproxy->dec_elem, "index", decproxy->acquired_port, NULL);
-    GST_DEBUG_OBJECT (decproxy->dec_elem, "Auido index set as %d",
-        decproxy->acquired_port);
-  } else if (decproxy->stream_type == STREAM_VIDEO) {
-    g_object_set (decproxy->dec_elem, "vdec-ch", decproxy->acquired_port, NULL);
-    GST_DEBUG_OBJECT (decproxy->dec_elem, "Video channel set as %d",
-        decproxy->acquired_port);
 
-    /* set port property for video-decoder in lm15u */
-    if (g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
-            "port")) {
-      g_object_set (decproxy->dec_elem, "port", decproxy->acquired_port, NULL);
-      GST_DEBUG_OBJECT (decproxy->dec_elem, "set port[%d] to video decoder",
-          decproxy->acquired_port);
-    }
-  }
 
   if (decproxy->resource_info &&
       g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
@@ -501,6 +484,27 @@ setup_decoder (GstDecProxy * decproxy)
     GST_DEBUG_OBJECT (decproxy->dec_elem,
         "set resource info to decoder, %" GST_PTR_FORMAT,
         decproxy->resource_info);
+  } else {
+    // FIXME: this is just for legacy sink property interface.
+    if (decproxy->stream_type == STREAM_AUDIO) {
+      g_object_set (decproxy->dec_elem, "index", decproxy->acquired_port, NULL);
+      GST_DEBUG_OBJECT (decproxy->dec_elem, "Auido index set as %d",
+          decproxy->acquired_port);
+    } else if (decproxy->stream_type == STREAM_VIDEO) {
+      g_object_set (decproxy->dec_elem, "vdec-ch", decproxy->acquired_port,
+          NULL);
+      GST_DEBUG_OBJECT (decproxy->dec_elem, "Video channel set as %d",
+          decproxy->acquired_port);
+
+      /* set port property for video-decoder in lm15u */
+      if (g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
+              "port")) {
+        g_object_set (decproxy->dec_elem, "port", decproxy->acquired_port,
+            NULL);
+        GST_DEBUG_OBJECT (decproxy->dec_elem, "set port[%d] to video decoder",
+            decproxy->acquired_port);
+      }
+    }
   }
 
   /* add decoder element to decproxy */
