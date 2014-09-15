@@ -345,7 +345,8 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       res = gst_pad_event_default (pad, parent, event);
 
       GST_DEC_PROXY_LOCK (decproxy);
-      if (!decproxy->block_id) {
+      if (!decproxy->block_id &&
+          decproxy->state_flag == GST_STATE_DEC_PROXY_NONE) {
         decproxy->block_id =
             gst_pad_add_probe (pad,
             GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, sinkpad_block_cb, decproxy,
