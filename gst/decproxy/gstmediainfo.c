@@ -168,6 +168,44 @@ posting_media_info_msg (GstMediaInfo * info, GstCaps * caps, gchar * stream_id)
   GST_INFO_OBJECT (info, "posted media-info message");
 }
 
+static void
+posting_media_info_msg_by_tag (GstMediaInfo * info, GstTagList * tags,
+    gchar * stream_id)
+{
+  GstStructure *media_info;
+  GstMessage *message;
+  const gchar *fieldname, *structure_name;
+  const GValue *value;
+  GstStructure *s;
+  GstCaps *caps;
+  gint tags_size = gst_tag_list_n_tags (tags);
+  guint i;
+
+  GST_DEBUG_OBJECT (info, "getting tags of %" GST_PTR_FORMAT, tags);
+  caps = gst_pad_get_current_caps (info->sinkpad);
+  s = gst_caps_get_structure (caps, 0);
+  structure_name = gst_structure_get_name (s);
+
+  media_info =
+      gst_structure_new ("media-info", "stream-id", G_TYPE_STRING, stream_id,
+      "type", G_TYPE_INT, STREAM_TEXT, "mime-type", G_TYPE_STRING,
+      structure_name, NULL);
+
+  for (i = 0; i < tags_size; i++) {
+    fieldname = gst_tag_list_nth_tag_name (tags, i);
+    value = gst_tag_list_get_value_index (tags, fieldname, i);
+    gst_structure_set_value (media_info, fieldname, value);
+  }
+  message =
+      gst_message_new_custom (GST_MESSAGE_APPLICATION, GST_OBJECT (info),
+      media_info);
+  gst_element_post_message (GST_ELEMENT_CAST (info), message);
+  GST_INFO_OBJECT (info, "posted media-info message : %" GST_PTR_FORMAT,
+      media_info);
+
+  gst_caps_unref (caps);
+}
+
 static gboolean
 gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
@@ -201,6 +239,23 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       /* post media-info */
       stream_id = gst_pad_get_stream_id (pad);
       posting_media_info_msg (info, caps, stream_id);
+      g_free (stream_id);
+
+      gst_event_unref (event);
+      gst_caps_unref (caps);
+    }
+      break;
+    case GST_EVENT_TAG:
+    {
+      GstTagList *tags;;
+      gchar *stream_id;
+
+      gst_event_parse_tag (event, &tags);
+      GST_DEBUG_OBJECT (pad, "got tags %" GST_PTR_FORMAT, tags);
+
+      /* post media-info */
+      stream_id = gst_pad_get_stream_id (pad);
+      posting_media_info_msg_by_tag (info, tags, stream_id);
       g_free (stream_id);
 
       gst_event_unref (event);
