@@ -30,6 +30,7 @@ TESTS = $(check_PROGRAMS)
 
 check_PROGRAMS = \
 	elements/decproxy \
+	elements/streamiddemux \
 	cool/gstcool \
 	cool/gstcoolutil
 
@@ -56,6 +57,13 @@ VALGRIND_TESTS_DISABLE = $(VALGRIND_TO_FIX)
 elements_decproxy_CFLAGS = \
 	$(GST_PLUGINS_BASE_CFLAGS) \
 	$(AM_CFLAGS)
+
+elements_streamiddemux_CFLAGS = \
+        $(GST_PLUGINS_BASE_CFLAGS) \
+        $(AM_CFLAGS)
+
+elements_streamiddemux_LDADD = \
+	$(LDADD)
 
 cool_gstcool_CFLAGS = \
         -DGST_COOL_CONFIG_PATH=\""$(top_builddir)/config/m14tv/gstcool.conf\"" \

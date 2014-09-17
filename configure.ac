@@ -116,6 +116,7 @@ AG_GST_CHECK_UNINSTALLED_SETUP([
 AG_GST_CHECK_PLUGIN(decproxy)
 AG_GST_CHECK_PLUGIN(httpextbin)
 AG_GST_CHECK_PLUGIN(dynappsrc)
+AG_GST_CHECK_PLUGIN(streamiddemux)
 
 dnl check for documentation tools
 GTK_DOC_CHECK([1.12])
@@ -221,6 +222,7 @@ gst/Makefile
 gst/decproxy/Makefile
 gst/httpextbin/Makefile
 gst/dynappsrc/Makefile
+gst/streamiddemux/Makefile
 gst-libs/Makefile
 gst-libs/gst/Makefile
 gst-libs/gst/cool/Makefile
