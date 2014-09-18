@@ -11,6 +11,7 @@ libgstcool_@GST_API_VERSION@_la_LDFLAGS = $(GST_LIB_LDFLAGS) $(GST_ALL_LDFLAGS) 
 libgstcool_@GST_API_VERSION@includedir = $(includedir)/gstreamer-@GST_API_VERSION@/gst/cool
 libgstcool_@GST_API_VERSION@include_HEADERS = \
 	gstcool.h \
-	gstcoolutil.h
+	gstcoolutil.h \
+	gstcoolrawcaps.h
 
 CLEANFILES = $(BUILT_SOURCES)

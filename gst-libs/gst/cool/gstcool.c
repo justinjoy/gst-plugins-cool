@@ -27,6 +27,8 @@
 
 #include <stdlib.h>
 
+
+static GstStaticCaps cool_raw_caps = GST_STATIC_CAPS (COOL_RAW_CAPS);
 static gboolean gst_cool_initialized = FALSE;
 
 static void gst_cool_load_configuration (const gchar * config_file);
@@ -170,11 +172,9 @@ gst_cool_set_rank (const gchar * plugin, gint rank)
 
 static void
 playbin_element_added (GstElement * playbin, GstElement * element,
-    gulong element_added_id)
+    gpointer user_data)
 {
-  g_return_val_if_fail (element_added_id != NULL, FALSE);
-
-  if (!g_strstr (GST_ELEMENT_NAME (element), "uridecodebin"))
+  if (!g_strrstr (GST_ELEMENT_NAME (element), "uridecodebin"))
     return;
 
   if (!g_object_class_find_property (G_OBJECT_GET_CLASS (element), "caps")) {
@@ -182,8 +182,7 @@ playbin_element_added (GstElement * playbin, GstElement * element,
     return;
   }
 
-  g_object_set (element, "caps", COOL_RAW_CAPS, NULL);
-  g_signal_handler_disconnect (playbin, element_added_id);
+  g_object_set (element, "caps", gst_static_caps_get (&cool_raw_caps), NULL);
 }
 
 gboolean
@@ -193,11 +192,9 @@ gst_cool_playbin_init (GstElement * playbin)
 
   g_return_val_if_fail (playbin != NULL, FALSE);
 
-  // TODO
-
   /* change default caps on uridecodebin */
-  element_added_id = g_signal_connect (playbin, "element-added",
-      (GCallback) playbin_element_added, element_added_id);
+  g_signal_connect (GST_BIN_CAST (playbin), "element-added",
+      (GCallback) playbin_element_added, NULL);
 
-  return FALSE;
+  return TRUE;
 }
