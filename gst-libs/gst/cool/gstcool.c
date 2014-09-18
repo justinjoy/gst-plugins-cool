@@ -23,6 +23,7 @@
 #endif
 
 #include "gstcool.h"
+#include "gstcoolrawcaps.h"
 
 #include <stdlib.h>
 
@@ -167,11 +168,36 @@ gst_cool_set_rank (const gchar * plugin, gint rank)
   gst_object_unref (feature);
 }
 
+static void
+playbin_element_added (GstElement * playbin, GstElement * element,
+    gulong element_added_id)
+{
+  g_return_val_if_fail (element_added_id != NULL, FALSE);
+
+  if (!g_strstr (GST_ELEMENT_NAME (element), "uridecodebin"))
+    return;
+
+  if (!g_object_class_find_property (G_OBJECT_GET_CLASS (element), "caps")) {
+    GST_ERROR ("%s does not has caps property", GST_ELEMENT_NAME (element));
+    return;
+  }
+
+  g_object_set (element, "caps", COOL_RAW_CAPS, NULL);
+  g_signal_handler_disconnect (playbin, element_added_id);
+}
+
 gboolean
 gst_cool_playbin_init (GstElement * playbin)
 {
+  gulong element_added_id;
+
   g_return_val_if_fail (playbin != NULL, FALSE);
 
   // TODO
+
+  /* change default caps on uridecodebin */
+  element_added_id = g_signal_connect (playbin, "element-added",
+      (GCallback) playbin_element_added, element_added_id);
+
   return FALSE;
 }
