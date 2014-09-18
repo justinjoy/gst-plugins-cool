@@ -30,7 +30,8 @@ TESTS = $(check_PROGRAMS)
 
 check_PROGRAMS = \
 	elements/decproxy \
-	cool/gstcool
+	cool/gstcool \
+	cool/gstcoolutil
 
 # these tests don't even pass
 noinst_PROGRAMS =

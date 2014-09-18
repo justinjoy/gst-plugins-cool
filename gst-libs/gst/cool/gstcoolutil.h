@@ -18,31 +18,17 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <gst/check/gstcheck.h>
-#include <gst/cool/gstcool.h>
+#ifndef __GST_COOLUTIL_H__
+#define __GST_COOLUTIL_H__
 
-GST_START_TEST (test_cool_init)
-{
+#include <gst/gst.h>
 
-  g_setenv ("GST_COOL_CONFIG", GST_COOL_CONFIG_PATH, FALSE);
+G_BEGIN_DECLS
 
-  gst_cool_init (NULL, NULL);
+GstStructure *  gst_cool_caps_to_info           (GstCaps *caps);
 
-  gst_cool_init (NULL, NULL);
-}
+GstStructure *  gst_cool_taglist_to_info        (GstTagList *taglist);
 
-GST_END_TEST;
+G_END_DECLS
 
-static Suite *
-gstcool_suite (void)
-{
-  Suite *s = suite_create ("GstCool");
-  TCase *tc_chain = tcase_create ("gst cool tests");
-
-  suite_add_tcase (s, tc_chain);
-  tcase_add_test (tc_chain, test_cool_init);
-
-  return s;
-}
-
-GST_CHECK_MAIN (gstcool);
+#endif

@@ -23,6 +23,7 @@
 #define __GST_COOL_H__
 
 #include <gst/gst.h>
+#include <gst/cool/gstcoolutil.h>
 
 G_BEGIN_DECLS
 
@@ -32,7 +33,7 @@ gboolean        gst_cool_init_check             (int *argc, char **argv[],
 
 GKeyFile *      gst_cool_get_configuration      (void);
 
-GstStructure *  gst_cool_caps_to_info           (GstCaps *caps);
+gboolean        gst_cool_playbin_init           (GstElement * playbin);
 
 G_END_DECLS
 

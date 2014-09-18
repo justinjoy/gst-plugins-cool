@@ -31,14 +31,6 @@ static gboolean gst_cool_initialized = FALSE;
 static void gst_cool_load_configuration (const gchar * config_file);
 static void gst_cool_set_rank (const gchar * plugin, gint rank);
 
-GstStructure *
-gst_cool_caps_to_info (GstCaps * caps)
-{
-  g_return_val_if_fail (caps != NULL, NULL);
-  // TODO:
-  return NULL;
-}
-
 static GKeyFile *config = NULL;
 GKeyFile *
 gst_cool_get_configuration (void)
@@ -98,10 +90,10 @@ gst_cool_init (int *argc, char **argv[])
 static void
 gst_cool_load_configuration (const gchar * config_file)
 {
-  gchar **sections;
+  gchar **sections = NULL;
   gsize n_sections;
 
-  gchar **rank_items;
+  gchar **rank_items = NULL;
   gsize n_rank_items;
 
   gint i;
@@ -173,4 +165,13 @@ gst_cool_set_rank (const gchar * plugin, gint rank)
   GST_DEBUG ("'%s' has %d rank value", plugin, rank);
 
   gst_object_unref (feature);
+}
+
+gboolean
+gst_cool_playbin_init (GstElement * playbin)
+{
+  g_return_val_if_fail (playbin != NULL, FALSE);
+
+  // TODO
+  return FALSE;
 }
