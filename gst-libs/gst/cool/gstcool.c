@@ -66,6 +66,7 @@ gst_cool_init_check (int *argc, char **argv[], GError ** err)
     GST_DEBUG ("loading gst-cool config from GST_COOL_CONFIG: %s",
         cool_config_file);
   } else {
+    // FIXME: the path should come from configuration
     cool_config_file = "/etc/gst/gstcool.conf";
   }
 
@@ -181,17 +182,16 @@ playbin_element_added (GstElement * playbin, GstElement * element,
     GST_ERROR ("%s does not has caps property", GST_ELEMENT_NAME (element));
     return;
   }
-
+  // FIXME: cool_raw_caps should come from configuration
   g_object_set (element, "caps", gst_static_caps_get (&cool_raw_caps), NULL);
 }
 
 gboolean
 gst_cool_playbin_init (GstElement * playbin)
 {
-  gulong element_added_id;
-
   g_return_val_if_fail (playbin != NULL, FALSE);
 
+  // FIXME: reclaim connected signal handle when destorying playbin
   /* change default caps on uridecodebin */
   g_signal_connect (GST_BIN_CAST (playbin), "element-added",
       (GCallback) playbin_element_added, NULL);
