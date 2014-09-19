@@ -25,9 +25,8 @@
 
 G_BEGIN_DECLS
 
-GstStructure *  gst_cool_caps_to_info           (GstCaps *caps);
-
-GstStructure *  gst_cool_taglist_to_info        (GstTagList *taglist);
+GstStructure *  gst_cool_caps_to_info          (GstCaps * caps, char *stream_id);
+GstStructure *  gst_cool_taglist_to_info        (GstTagList * taglist, char *stream_id, const char *mime_type);
 
 G_END_DECLS
 

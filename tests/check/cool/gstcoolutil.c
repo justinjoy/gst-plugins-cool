@@ -25,32 +25,61 @@ GST_START_TEST (test_caps_to_info)
 {
   GstCaps *caps;
   GstStructure *info1;
+  const gchar *fieldname;
+  const gchar *value;
 
-  caps =
-      gst_caps_new_simple ("video/x-h264", "stream-id", G_TYPE_STRING,
-      "xxx-stream-id-xxx", "type", G_TYPE_INT, 1, NULL);
+  caps = gst_caps_new_simple ("video/x-h264",
+      "stream-format", G_TYPE_STRING, "byte-stream",
+      "alignment", G_TYPE_STRING, "nal", "format", G_TYPE_STRING, "h264", NULL);
 
-  // Should not be crashed even NULL ptr given.
-  info1 = gst_cool_caps_to_info (caps);
+  info1 = gst_cool_caps_to_info (caps, "xxx-stream-id-xxx");
   fail_unless (info1 != NULL, "Cannot create structure from CAPS");
-  fail_unless_equals_string ("video/x-h264", gst_structure_get_name (info1));
 
-  gst_structure_free (info1);
+  /* TEST1 : compare structure name */
+  fail_unless_equals_string ("media-info", gst_structure_get_name (info1));
+
+  /* TEST2-1 : compare field name about second field */
+  fieldname = gst_structure_nth_field_name (info1, 2);
+  value = gst_structure_get_string (info1, fieldname);
+  fail_unless_equals_string ("video/x-h264", value);
+
+  /* TEST2-2 : compare field name about third field */
+  fieldname = gst_structure_nth_field_name (info1, 3);
+  value = gst_structure_get_string (info1, fieldname);
+  fail_unless_equals_string ("byte-stream", value);
+
+  gst_caps_unref (caps);
 }
 
 GST_END_TEST;
 
 GST_START_TEST (test_taglist_to_info)
 {
-  GstTagList *taglist = NULL;
+  GstTagList *taglist;
   GstStructure *info1;
+  const gchar *fieldname;
+  const gchar *value;
 
-  info1 = gst_cool_taglist_to_info (taglist);
-  fail_unless (info1 == NULL, "Unexpected Structure");
+  taglist = gst_tag_list_new (GST_TAG_DEVICE_MANUFACTURER, "MyFavoriteBrand",
+      GST_TAG_DEVICE_MODEL, "123v42.1",
+      GST_TAG_DESCRIPTION, "some description",
+      GST_TAG_APPLICATION_NAME, "camerabin test", NULL);
 
-  taglist = gst_tag_list_new_empty ();
-  info1 = gst_cool_taglist_to_info (taglist);
+  info1 = gst_cool_taglist_to_info (taglist, "xxx-stream-id-xxx", "video/mpeg");
   fail_unless (info1 != NULL, "Cannot create structure from TagList");
+
+  /* TEST1 : compare structure name */
+  fail_unless_equals_string ("media-info", gst_structure_get_name (info1));
+
+  /* TEST2-1 : compare field name about second field */
+  fieldname = gst_structure_nth_field_name (info1, 2);
+  value = gst_structure_get_string (info1, fieldname);
+  fail_unless_equals_string ("video/mpeg", value);
+
+  /* TEST2-2 : compare field name about third field */
+  fieldname = gst_structure_nth_field_name (info1, 3);
+  value = gst_structure_get_string (info1, fieldname);
+  fail_unless_equals_string ("MyFavoriteBrand", value);
 
   gst_structure_free (info1);
   gst_tag_list_unref (taglist);
