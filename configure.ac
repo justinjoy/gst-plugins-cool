@@ -118,6 +118,7 @@ AG_GST_CHECK_PLUGIN(httpextbin)
 AG_GST_CHECK_PLUGIN(dynappsrc)
 AG_GST_CHECK_PLUGIN(streamiddemux)
 AG_GST_CHECK_PLUGIN(tsinkbin)
+AG_GST_CHECK_PLUGIN(textbin)
 
 dnl check for documentation tools
 GTK_DOC_CHECK([1.12])
@@ -224,6 +225,7 @@ gst/decproxy/Makefile
 gst/httpextbin/Makefile
 gst/dynappsrc/Makefile
 gst/streamiddemux/Makefile
+gst/textbin/Makefile
 gst/tsinkbin/Makefile
 gst-libs/Makefile
 gst-libs/gst/Makefile
@@ -236,6 +238,7 @@ tests/check/Makefile
 tests/examples/Makefile
 tests/examples/rm/Makefile
 tests/examples/mediainfo/Makefile
+tests/examples/textbin/Makefile
 m4/Makefile
 )
 AC_OUTPUT

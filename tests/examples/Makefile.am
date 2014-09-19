@@ -1,7 +1,9 @@
 SUBDIRS = \
 	rm \
-	mediainfo
+	mediainfo \
+	textbin
 
 DIST_SUBDIRS = \
 	rm \
-	mediainfo
+	mediainfo \
+	textbin
