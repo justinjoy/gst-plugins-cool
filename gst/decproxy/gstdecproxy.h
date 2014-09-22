@@ -40,6 +40,7 @@ G_BEGIN_DECLS
     "video/x-ffv;" \
     "video/x-3ivx;" \
     "video/x-vp8;" \
+    "video/x-vp9;" \
     "video/x-xvid;" \
     "video/x-flash-video;" \
     "image/jpeg"
