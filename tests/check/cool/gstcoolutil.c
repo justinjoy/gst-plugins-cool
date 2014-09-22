@@ -45,11 +45,10 @@ GST_START_TEST (test_taglist_to_info)
   GstTagList *taglist = NULL;
   GstStructure *info1;
 
-
   info1 = gst_cool_taglist_to_info (taglist);
   fail_unless (info1 == NULL, "Unexpected Structure");
 
-  taglist = gst_tag_list_new ();
+  taglist = gst_tag_list_new_empty ();
   info1 = gst_cool_taglist_to_info (taglist);
   fail_unless (info1 != NULL, "Cannot create structure from TagList");
 

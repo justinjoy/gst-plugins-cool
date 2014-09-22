@@ -74,3 +74,12 @@ cool_gstcool_LDADD = \
         $(top_builddir)/gst-libs/gst/cool/libgstcool-@GST_API_VERSION@.la \
         $(LDADD)
 
+cool_gstcoolutil_CFLAGS = \
+        -DGST_COOL_CONFIG_PATH=\""$(top_builddir)/config/m14tv/gstcool.conf\"" \
+	$(GST_PLUGINS_BASE_CFLAGS) \
+	$(AM_CFLAGS)
+
+cool_gstcoolutil_LDADD = \
+        $(top_builddir)/gst-libs/gst/cool/libgstcool-@GST_API_VERSION@.la \
+        $(LDADD)
+
