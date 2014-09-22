@@ -28,7 +28,7 @@ G_BEGIN_DECLS
 #define COOL_RAW_CAPS \
     "video/x-raw; " \
     "audio/x-media; " \
-    "text/x-media; "
+    "subtitle/x-media; "
 
 G_END_DECLS
 
