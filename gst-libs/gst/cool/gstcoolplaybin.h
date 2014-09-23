@@ -19,20 +19,20 @@
  */
 
 
-#ifndef __GST_COOL_H__
-#define __GST_COOL_H__
+#ifndef __GST_COOL_PLAYBIN_H__
+#define __GST_COOL_PLAYBIN_H__
 
 #include <gst/gst.h>
 #include <gst/cool/gstcoolutil.h>
-#include <gst/cool/gstcoolplaybin.h>
 
 G_BEGIN_DECLS
 
-void            gst_cool_init                   (int *argc, char **argv[]);
-gboolean        gst_cool_init_check             (int *argc, char **argv[],
-                                                 GError ** err); 
+gboolean        gst_cool_playbin_init           (GstElement * playbin);
 
-GKeyFile *      gst_cool_get_configuration      (void);
+GstElement *    gst_cool_playbin_get_q2         (GstElement * playbin);
+
+void            gst_cool_playbin_set_q2_conf    (GstElement * playbin,
+                                                 const gchar * firstfield, ...);
 
 G_END_DECLS
 

@@ -23,12 +23,9 @@
 #endif
 
 #include "gstcool.h"
-#include "gstcoolrawcaps.h"
 
 #include <stdlib.h>
 
-
-static GstStaticCaps cool_raw_caps = GST_STATIC_CAPS (COOL_RAW_CAPS);
 static gboolean gst_cool_initialized = FALSE;
 
 static void gst_cool_load_configuration (const gchar * config_file);
@@ -169,32 +166,4 @@ gst_cool_set_rank (const gchar * plugin, gint rank)
   GST_DEBUG ("'%s' has %d rank value", plugin, rank);
 
   gst_object_unref (feature);
-}
-
-static void
-playbin_element_added (GstElement * playbin, GstElement * element,
-    gpointer user_data)
-{
-  if (!g_strrstr (GST_ELEMENT_NAME (element), "uridecodebin"))
-    return;
-
-  if (!g_object_class_find_property (G_OBJECT_GET_CLASS (element), "caps")) {
-    GST_ERROR ("%s does not has caps property", GST_ELEMENT_NAME (element));
-    return;
-  }
-  // FIXME: cool_raw_caps should come from configuration
-  g_object_set (element, "caps", gst_static_caps_get (&cool_raw_caps), NULL);
-}
-
-gboolean
-gst_cool_playbin_init (GstElement * playbin)
-{
-  g_return_val_if_fail (playbin != NULL, FALSE);
-
-  // FIXME: reclaim connected signal handle when destorying playbin
-  /* change default caps on uridecodebin */
-  g_signal_connect (GST_BIN_CAST (playbin), "element-added",
-      (GCallback) playbin_element_added, NULL);
-
-  return TRUE;
 }
