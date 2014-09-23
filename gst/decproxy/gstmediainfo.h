@@ -22,6 +22,7 @@
 #define __GST_MEDIA_INFO_H__
 
 #include <gst/gst.h>
+#include <gst/cool/gstcool.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_MEDIA_INFO \
