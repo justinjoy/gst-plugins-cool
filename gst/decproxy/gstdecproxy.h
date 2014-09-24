@@ -23,6 +23,7 @@
 #define __GST_DEC_PROXY_H__
 
 #include <gst/gst.h>
+#include <gst/cool/gstcool.h>
 
 G_BEGIN_DECLS
 #define DECODE_VIDEO_CAPS \
