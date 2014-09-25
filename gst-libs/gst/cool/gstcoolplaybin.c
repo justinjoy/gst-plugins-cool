@@ -40,20 +40,22 @@ q2_set_property_by_configuration (GstElement * q2)
   gint max_size_buffers = 0;
   gint max_size_bytes = 0;
   guint64 max_size_time = 0;
+  guint64 ring_buffer_max_size = 0;
 
   GError *err = NULL;
 
   GKeyFile *config = gst_cool_get_configuration ();
 
   high_percent =
-      g_key_file_get_integer (config, "playbin", "high-percent", &err);
+      g_key_file_get_integer (config, "buffering", "high-percent", &err);
   if (err) {
     GST_WARNING ("Unable to read high-percent: %s", err->message);
     g_error_free (err);
     err = NULL;
   }
 
-  low_percent = g_key_file_get_integer (config, "playbin", "low-percent", &err);
+  low_percent =
+      g_key_file_get_integer (config, "buffering", "low-percent", &err);
 
   if (err) {
     GST_WARNING ("Unable to read low-percent: %s", err->message);
@@ -62,7 +64,7 @@ q2_set_property_by_configuration (GstElement * q2)
   }
 
   max_size_buffers =
-      g_key_file_get_integer (config, "playbin", "max-size-buffers", &err);
+      g_key_file_get_integer (config, "buffering", "max-size-buffers", &err);
 
   if (err) {
     GST_WARNING ("Unable to read max-size-buffers: %s", err->message);
@@ -71,7 +73,7 @@ q2_set_property_by_configuration (GstElement * q2)
   }
 
   max_size_bytes =
-      g_key_file_get_integer (config, "playbin", "max-size-bytes", &err);
+      g_key_file_get_integer (config, "buffering", "max-size-bytes", &err);
 
   if (err) {
     GST_WARNING ("Unable to read max-size-bytes: %s", err->message);
@@ -80,7 +82,16 @@ q2_set_property_by_configuration (GstElement * q2)
   }
 
   max_size_time =
-      g_key_file_get_uint64 (config, "playbin", "max-size-time", &err);
+      g_key_file_get_uint64 (config, "buffering", "max-size-time", &err);
+
+  if (err) {
+    GST_WARNING ("Unable to read max-size-time: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  ring_buffer_max_size =
+      g_key_file_get_uint64 (config, "buffering", "ring-buffer-max-size", &err);
 
   if (err) {
     GST_WARNING ("Unable to read max-size-time: %s", err->message);
@@ -92,14 +103,16 @@ q2_set_property_by_configuration (GstElement * q2)
       "low-percent: %d, "
       "max-size-buffers: %d, "
       "max-size-bytes: %d, "
-      "max-size-time: %ld",
+      "max-size-time: %" G_GUINT64_FORMAT ", "
+      "ring-buffer-max-size: %" G_GUINT64_FORMAT,
       high_percent, low_percent, max_size_buffers, max_size_bytes,
-      max_size_time);
+      max_size_time, ring_buffer_max_size);
 
   g_object_set (q2, "high-percent", high_percent,
       "low-percent", low_percent,
       "max-size-buffers", max_size_buffers,
-      "max-size-bytes", max_size_bytes, "max-size-time", max_size_time, NULL);
+      "max-size-bytes", max_size_bytes, "max-size-time", max_size_time,
+      "ring-buffer-max-size", ring_buffer_max_size, NULL);
 }
 
 static void
@@ -195,8 +208,8 @@ gst_cool_playbin_set_q2_conf_valist (GstElement * playbin,
     type = va_arg (vaargs, GType);
     G_VALUE_COLLECT_INIT (&value, type, vaargs, 0, &err);
 
-    if (g_key_file_has_key (config, "playbin", fieldname, &err)) {
-      g_key_file_set_value (config, "playbin", fieldname,
+    if (g_key_file_has_key (config, "buffering", fieldname, &err)) {
+      g_key_file_set_value (config, "buffering", fieldname,
           g_value_get_string (&value));
     } else {
       GST_WARNING ("Failed to set %s property to q2: %s", fieldname,
