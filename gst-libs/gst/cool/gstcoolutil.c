@@ -58,7 +58,7 @@ gst_cool_find_type (const gchar * mime_type)
   g_return_val_if_fail (mime_type != NULL, STREAM_LAST);
 
   guint type;
-  if (g_strrstr (mime_type, "video"))
+  if (g_strrstr (mime_type, "video") || g_strrstr (mime_type, "image"))
     type = STREAM_VIDEO;
   else if (g_strrstr (mime_type, "audio"))
     type = STREAM_AUDIO;
