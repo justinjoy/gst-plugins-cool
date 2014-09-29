@@ -85,7 +85,7 @@ gst_cool_caps_to_info (GstCaps * caps, char *stream_id)
   GST_DEBUG ("getting caps information: %" GST_PTR_FORMAT, caps);
 
   media_info = gst_structure_new ("media-info",
-      "stream-id", G_TYPE_STRING, stream_id,
+      "stream-id", G_TYPE_STRING, g_strdup (stream_id),
       "type", G_TYPE_INT, type,
       "mime-type", G_TYPE_STRING, g_strdup (mime_type), NULL);
 
@@ -115,8 +115,8 @@ gst_cool_taglist_to_info (GstTagList * taglist, char *stream_id,
 
   media_info =
       gst_structure_new ("media-info", "stream-id", G_TYPE_STRING,
-      stream_id, "type", G_TYPE_INT, type, "mime-type", G_TYPE_STRING,
-      g_strdup (mime_type), NULL);
+      g_strdup (stream_id), "type", G_TYPE_INT, type, "mime-type",
+      G_TYPE_STRING, g_strdup (mime_type), NULL);
 
   str_structure = gst_tag_list_to_string (taglist);
   s = gst_structure_new_from_string (str_structure);
