@@ -178,7 +178,6 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       g_free (stream_id);
 
       gst_event_unref (event);
-      gst_caps_unref (caps);
     }
       break;
     case GST_EVENT_TAG:
