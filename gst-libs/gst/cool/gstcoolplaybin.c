@@ -42,6 +42,8 @@ q2_set_property_by_configuration (GstElement * q2)
   guint64 max_size_time = 0;
   guint64 ring_buffer_max_size = 0;
 
+  gboolean use_rate_estimate = TRUE;
+
   GError *err = NULL;
 
   GKeyFile *config = gst_cool_get_configuration ();
@@ -99,20 +101,32 @@ q2_set_property_by_configuration (GstElement * q2)
     err = NULL;
   }
 
+  use_rate_estimate =
+      g_key_file_get_boolean (config, "buffering", "use-rate-estimate", &err);
+
+  if (err) {
+    GST_WARNING ("Unable to read use-rate-estimate: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+
   GST_DEBUG ("queue2 has properties: high-percent: %d,"
       "low-percent: %d, "
       "max-size-buffers: %d, "
       "max-size-bytes: %d, "
       "max-size-time: %" G_GUINT64_FORMAT ", "
-      "ring-buffer-max-size: %" G_GUINT64_FORMAT,
+      "ring-buffer-max-size: %" G_GUINT64_FORMAT ", "
+      "use-rate-estimate: %d",
       high_percent, low_percent, max_size_buffers, max_size_bytes,
-      max_size_time, ring_buffer_max_size);
+      max_size_time, ring_buffer_max_size, use_rate_estimate);
 
   g_object_set (q2, "high-percent", high_percent,
       "low-percent", low_percent,
       "max-size-buffers", max_size_buffers,
       "max-size-bytes", max_size_bytes, "max-size-time", max_size_time,
-      "ring-buffer-max-size", ring_buffer_max_size, NULL);
+      "ring-buffer-max-size", ring_buffer_max_size,
+      "use-rate-estimate", use_rate_estimate, NULL);
 }
 
 static void
@@ -295,6 +309,10 @@ gst_cool_playbin_set_q2_conf_valist (GstElement * playbin,
         case G_TYPE_UINT64:
           g_key_file_set_uint64 (config, "buffering", fieldname,
               g_value_get_uint64 (&value));
+          break;
+        case G_TYPE_BOOLEAN:
+          g_key_file_set_boolean (config, "buffering", fieldname,
+              g_value_get_boolean (&value));
           break;
         default:
           GST_WARNING ("Unsupported configuration format");
