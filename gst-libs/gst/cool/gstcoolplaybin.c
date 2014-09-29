@@ -282,8 +282,24 @@ gst_cool_playbin_set_q2_conf_valist (GstElement * playbin,
     G_VALUE_COLLECT_INIT (&value, type, vaargs, 0, &err);
 
     if (g_key_file_has_key (config, "buffering", fieldname, &err)) {
-      g_key_file_set_value (config, "buffering", fieldname,
-          g_value_get_string (&value));
+      switch (type) {
+        case G_TYPE_INT:
+        case G_TYPE_UINT:
+          g_key_file_set_integer (config, "buffering", fieldname,
+              g_value_get_int (&value));
+          break;
+        case G_TYPE_INT64:
+          g_key_file_set_int64 (config, "buffering", fieldname,
+              g_value_get_int64 (&value));
+          break;
+        case G_TYPE_UINT64:
+          g_key_file_set_uint64 (config, "buffering", fieldname,
+              g_value_get_uint64 (&value));
+          break;
+        default:
+          GST_WARNING ("Unsupported configuration format");
+          break;
+      }
     } else {
       GST_WARNING ("Failed to set %s property to q2: %s", fieldname,
           err->message);
@@ -293,8 +309,11 @@ gst_cool_playbin_set_q2_conf_valist (GstElement * playbin,
     fieldname = va_arg (vaargs, gchar *);
   }
 
-  q2_set_property_by_configuration (q2);
-  gst_object_unref (GST_OBJECT (q2));
+  if (q2 != NULL) {
+    q2_set_property_by_configuration (q2);
+    gst_object_unref (GST_OBJECT (q2));
+    GST_DEBUG ("Detected q2 instance, configuration will be set directly");
+  }
 }
 
 void
