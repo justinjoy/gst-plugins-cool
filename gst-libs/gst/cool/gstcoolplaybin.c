@@ -146,6 +146,77 @@ playbin_element_added (GstElement * playbin, GstElement * element,
   g_object_set (element, "caps", gst_static_caps_get (&cool_raw_caps), NULL);
 }
 
+static void
+gst_cool_playbin_set_default_sink (GstElement * playbin)
+{
+  const gchar *videosink = NULL;
+  const gchar *audiosink = NULL;
+  GKeyFile *config = gst_cool_get_configuration ();
+  GError *err = NULL;
+  GstIterator *iter;
+  gboolean done = FALSE;
+
+  videosink = g_key_file_get_string (config, "default_sink", "video", &err);
+  if (err) {
+    GST_WARNING ("Unable to read default video sink: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  audiosink = g_key_file_get_string (config, "default_sink", "audio", &err);
+  if (err) {
+    GST_WARNING ("Unable to read default video sink: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  if (!audiosink && !videosink)
+    return;
+
+  iter = gst_bin_iterate_sinks (GST_BIN (playbin));
+  while (!done) {
+    GstIteratorResult ires;
+    GValue item = { 0 };
+
+    ires = gst_iterator_next (iter, &item);
+    switch (ires) {
+      case GST_ITERATOR_DONE:
+        done = TRUE;
+        break;
+      case GST_ITERATOR_OK:
+      {
+        GstElement *playsink = g_value_get_object (&item);
+
+        if (audiosink) {
+          /* for sending media-info in audio/x-raw cases,
+           * audiosink should be set to 0. */
+          gst_cool_set_rank (audiosink, 0);
+
+          g_object_set (playsink, "default-audio-sink", audiosink, NULL);
+        }
+        if (videosink)
+          g_object_set (playsink, "default-video-sink", videosink, NULL);
+
+        GST_INFO_OBJECT (playsink,
+            "set default sinks, audiosink:%s, videosink:%s", audiosink,
+            videosink);
+
+        g_value_reset (&item);
+        break;
+      }
+      case GST_ITERATOR_RESYNC:
+        gst_iterator_resync (iter);
+        break;
+      default:
+        done = TRUE;
+        break;
+    }
+    g_value_unset (&item);
+  }
+
+  gst_iterator_free (iter);
+}
+
 gboolean
 gst_cool_playbin_init (GstElement * playbin)
 {
@@ -155,6 +226,8 @@ gst_cool_playbin_init (GstElement * playbin)
   /* change default caps on uridecodebin */
   g_signal_connect (GST_BIN_CAST (playbin), "element-added",
       (GCallback) playbin_element_added, NULL);
+
+  gst_cool_playbin_set_default_sink (playbin);
 
   return TRUE;
 }

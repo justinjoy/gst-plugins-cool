@@ -29,7 +29,6 @@
 static gboolean gst_cool_initialized = FALSE;
 
 static void gst_cool_load_configuration (const gchar * config_file);
-static void gst_cool_set_rank (const gchar * plugin, gint rank);
 
 static GKeyFile *config = NULL;
 GKeyFile *
@@ -148,7 +147,7 @@ done:
   g_strfreev (sections);
 }
 
-static void
+void
 gst_cool_set_rank (const gchar * plugin, gint rank)
 {
   GstPluginFeature *feature;

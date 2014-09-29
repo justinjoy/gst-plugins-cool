@@ -33,6 +33,7 @@ gboolean        gst_cool_init_check             (int *argc, char **argv[],
                                                  GError ** err); 
 
 GKeyFile *      gst_cool_get_configuration      (void);
+void            gst_cool_set_rank               (const gchar * plugin, gint rank);
 
 G_END_DECLS
 
