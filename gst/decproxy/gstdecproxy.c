@@ -166,7 +166,6 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
       GST_DEBUG_FUNCPTR (gst_dec_proxy_handle_sink_query));
 
   gst_element_add_pad (GST_ELEMENT (decproxy), decproxy->sinkpad);
-  gst_object_unref (sink_pad_template);
 
   /* get srcpad template */
   src_pad_template = gst_element_class_get_pad_template (element_class, "src");
@@ -188,7 +187,6 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
       GST_DEBUG_FUNCPTR (gst_dec_proxy_handle_src_query));
 
   gst_element_add_pad (GST_ELEMENT (decproxy), decproxy->srcpad);
-  gst_object_unref (src_pad_template);
 
   decproxy->block_id = 0;
   decproxy->caps = NULL;
