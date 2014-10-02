@@ -163,6 +163,12 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       s = gst_caps_get_structure (caps, 0);
       structure_name = gst_structure_get_name (s);
 
+      /* post media-info */
+      stream_id = gst_pad_get_stream_id (pad);
+      media_info = gst_cool_caps_to_info (caps, stream_id);
+      posting_media_info_msg (info, media_info);
+      g_free (stream_id);
+
       if (g_str_has_prefix (structure_name, "audio/"))
         gst_pad_set_caps (info->srcpad, gst_caps_from_string ("audio/x-media"));
       else
@@ -170,12 +176,6 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
             gst_caps_from_string ("subtitle/x-media"));
 
       gst_media_info_set_caps (info, caps);
-
-      /* post media-info */
-      stream_id = gst_pad_get_stream_id (pad);
-      media_info = gst_cool_caps_to_info (caps, stream_id);
-      posting_media_info_msg (info, media_info);
-      g_free (stream_id);
 
       gst_event_unref (event);
     }
