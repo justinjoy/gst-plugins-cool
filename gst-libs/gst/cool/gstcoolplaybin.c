@@ -211,6 +211,9 @@ gst_cool_playbin_set_default_sink (GstElement * playbin)
         if (videosink)
           g_object_set (playsink, "default-video-sink", videosink, NULL);
 
+        // FIXME: https://jira2.lgsvl.com/browse/BHV-15462
+        g_object_set (playsink, "delay-config-mode", TRUE, NULL);
+
         GST_INFO_OBJECT (playsink,
             "set default sinks, audiosink:%s, videosink:%s", audiosink,
             videosink);
