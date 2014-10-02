@@ -166,3 +166,15 @@ gst_cool_set_rank (const gchar * plugin, gint rank)
 
   gst_object_unref (feature);
 }
+
+void
+gst_cool_set_decode_buffer_size (guint in_size, guint out_size)
+{
+  GKeyFile *config = gst_cool_get_configuration ();
+
+  g_key_file_set_integer (config, "decode", "in_size", in_size);
+
+  g_key_file_set_integer (config, "decode", "out_size", out_size);
+
+  GST_DEBUG ("decode buffer has changed in: %d, out: %d", in_size, out_size);
+}

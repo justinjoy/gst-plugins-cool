@@ -35,6 +35,8 @@ gboolean        gst_cool_init_check             (int *argc, char **argv[],
 GKeyFile *      gst_cool_get_configuration      (void);
 void            gst_cool_set_rank               (const gchar * plugin, gint rank);
 
+void            gst_cool_set_decode_buffer_size (guint in_size, guint out_size);
+
 G_END_DECLS
 
 #endif

@@ -442,7 +442,26 @@ setup_decoder (GstDecProxy * decproxy)
     GST_WARNING_OBJECT (decproxy, "Could not create a decoder element ");
     return FALSE;
   }
+  // FIXME: Do not access configuration directly
+  if (g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
+          "input-buffers")) {
+    GError *err = NULL;
+    GKeyFile *config = gst_cool_get_configuration ();
 
+    gint in_size = g_key_file_get_integer (config, "decode", "in_size", &err);
+
+    if (err) {
+      GST_WARNING_OBJECT (decproxy, "Unable to read in_size: %s", err->message);
+      g_error_free (err);
+      err = NULL;
+    } else {
+      g_object_set (decproxy->dec_elem, "input-buffers", in_size, NULL);
+      GST_DEBUG_OBJECT (decproxy->dec_elem, "decoder in-buffers changed: %d",
+          in_size);
+
+      // TODO: How about output-buffers?
+    }
+  }
 
   if (decproxy->resource_info &&
       g_object_class_find_property (G_OBJECT_GET_CLASS (decproxy->dec_elem),
