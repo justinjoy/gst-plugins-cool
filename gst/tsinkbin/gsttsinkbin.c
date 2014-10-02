@@ -144,9 +144,14 @@ gst_tsink_bin_request_new_pad (GstElement * element, GstPadTemplate * templ,
     GST_WARNING_OBJECT (element, "fail to create appsink element");
     goto fail;
   }
-
+  // FIXME: Needs to mutex lock when properties are set in appsink.
+  // If not, it may cause crash problem in h15 platform.
+  // issue address : [BHV-15451] Crash problem when playing internal subtitle
+  GST_TSINK_BIN_LOCK (tsinkbin);
   g_object_set (t_group->appsink, "emit-signals", TRUE, "sync", FALSE,
       "ts-offset", 1000 * 1000, NULL);
+  GST_TSINK_BIN_UNLOCK (tsinkbin);
+
   g_signal_connect (t_group->appsink, "new-sample",
       G_CALLBACK (gst_tsink_bin_new_sample), NULL);
 
