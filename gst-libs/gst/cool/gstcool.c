@@ -28,7 +28,9 @@
 
 static gboolean gst_cool_initialized = FALSE;
 
-static void gst_cool_load_configuration (const gchar * config_file);
+static void gst_cool_init_config (void);
+static void gst_cool_load_configuration (void);
+static void gst_cool_load_debug_configuration (void);
 
 static GKeyFile *config = NULL;
 GKeyFile *
@@ -40,12 +42,21 @@ gst_cool_get_configuration (void)
 gboolean
 gst_cool_init_check (int *argc, char **argv[], GError ** err)
 {
-  const gchar *cool_config_file;
   gboolean res;
 
   // TODO: configuration should be loaded by given path
   // static const gchar *config_name[] = { "gstcool.conf", NULL };
   // static const gchar *env_config_name[] = { "GST_COOL_CONFIG_DIR", NULL };
+
+  if (gst_cool_initialized) {
+    GST_DEBUG ("already initialized gst-cool");
+    return TRUE;
+  }
+
+  gst_cool_init_config ();
+
+  /* set debug config before gst_init */
+  gst_cool_load_debug_configuration ();
 
   res = gst_init_check (argc, argv, err);
 
@@ -53,20 +64,7 @@ gst_cool_init_check (int *argc, char **argv[], GError ** err)
     return FALSE;
   }
 
-  if (gst_cool_initialized) {
-    GST_DEBUG ("already initialized gst-cool");
-    return TRUE;
-  }
-
-  if ((cool_config_file = g_getenv ("GST_COOL_CONFIG")) != NULL) {
-    GST_DEBUG ("loading gst-cool config from GST_COOL_CONFIG: %s",
-        cool_config_file);
-  } else {
-    // FIXME: the path should come from configuration
-    cool_config_file = "/etc/gst/gstcool.conf";
-  }
-
-  gst_cool_load_configuration (cool_config_file);
+  gst_cool_load_configuration ();
 
   gst_cool_initialized = res;
 
@@ -88,7 +86,31 @@ gst_cool_init (int *argc, char **argv[])
 }
 
 static void
-gst_cool_load_configuration (const gchar * config_file)
+gst_cool_init_config (void)
+{
+  GError *err = NULL;
+  const gchar *cool_config_file;
+
+  if ((cool_config_file = g_getenv ("GST_COOL_CONFIG")) != NULL) {
+    GST_DEBUG ("loading gst-cool config from GST_COOL_CONFIG: %s",
+        cool_config_file);
+  } else {
+    // FIXME: the path should come from configuration
+    cool_config_file = "/etc/gst/gstcool.conf";
+  }
+
+  config = g_key_file_new ();
+
+  if (!g_key_file_load_from_file (config, cool_config_file, G_KEY_FILE_NONE,
+          &err)) {
+    GST_ERROR ("Failed to load gst-cool configuration file(%s): %s",
+        cool_config_file, err->message);
+    g_error_free (err);
+  }
+}
+
+static void
+gst_cool_load_configuration (void)
 {
   gchar **sections = NULL;
   gsize n_sections;
@@ -98,15 +120,6 @@ gst_cool_load_configuration (const gchar * config_file)
 
   gint i;
   GError *err = NULL;
-
-  config = g_key_file_new ();
-
-  if (!g_key_file_load_from_file (config, config_file, G_KEY_FILE_NONE, &err)) {
-    GST_ERROR ("Failed to load gst-cool configuration file(%s): %s",
-        config_file, err->message);
-    g_error_free (err);
-    goto done;
-  }
 
   sections = g_key_file_get_groups (config, &n_sections);
 
@@ -145,6 +158,74 @@ gst_cool_load_configuration (const gchar * config_file)
 done:
   g_strfreev (rank_items);
   g_strfreev (sections);
+}
+
+static void
+gst_cool_load_debug_configuration (void)
+{
+  const gchar *debug_mode;
+  const gchar *gst_debug;
+  const gchar *gst_debug_file;
+  const gchar *gst_debug_dump_dot_dir;
+  gint gst_debug_no_color = 0;
+
+  GError *err = NULL;
+
+  debug_mode = g_key_file_get_string (config, "debug", "DEBUG_MODE", &err);
+  if (err) {
+    GST_WARNING ("Unable to read debug mode: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  /* if debug mode is not enable, do not set debug environment variable */
+  if (g_strcmp0 (debug_mode, "enable") != 0)
+    return;
+
+  gst_debug = g_key_file_get_string (config, "debug", "GST_DEBUG", &err);
+  if (err) {
+    GST_WARNING ("Unable to read GST_DEBUG option: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  gst_debug_file =
+      g_key_file_get_string (config, "debug", "GST_DEBUG_FILE", &err);
+  if (err) {
+    GST_WARNING ("Unable to read GST_DEBUG_FILE option: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  gst_debug_dump_dot_dir = g_key_file_get_string (config, "debug",
+      "GST_DEBUG_DUMP_DOT_DIR", &err);
+  if (err) {
+    GST_WARNING ("Unable to read GST_DEBUG_DUMP_DOT_DIR option: %s",
+        err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  gst_debug_no_color = g_key_file_get_integer (config, "debug",
+      "GST_DEBUG_NO_COLOR", &err);
+  if (err) {
+    GST_WARNING ("Unable to read GST_DEBUG_NO_COLOR option: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  GST_WARNING ("setenv GST_DEBUG=%s, GST_DEBUG_FILE=%s\n"
+      "GST_DEBUG_DUMP_DOT_DIR=%s, GST_DEBUG_GST_DEBUG_NO_COLOR=%d",
+      gst_debug, gst_debug_file, gst_debug_dump_dot_dir, gst_debug_no_color);
+
+  if (gst_debug)
+    g_setenv ("GST_DEBUG", gst_debug, 1);
+  if (gst_debug_file)
+    g_setenv ("GST_DEBUG_FILE", gst_debug_file, 1);
+  if (gst_debug_dump_dot_dir)
+    g_setenv ("GST_DEBUG_DUMP_DOT_DIR", gst_debug_dump_dot_dir, 1);
+  if (gst_debug_no_color)
+    g_setenv ("GST_DEBUG_NO_COLOR", "1", 1);
 }
 
 void
