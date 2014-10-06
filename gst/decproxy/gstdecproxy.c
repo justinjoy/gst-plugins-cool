@@ -297,6 +297,13 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       media_info = gst_cool_caps_to_info (caps, stream_id);
       posting_media_info_msg (decproxy, media_info);
 
+      /* if it is not a first caps event then just post media info */
+      if (decproxy->state_flag != GST_STATE_DEC_PROXY_NONE) {
+        res = gst_pad_event_default (pad, parent, event);
+        g_free (stream_id);
+        break;
+      }
+
       gst_pad_push_event (decproxy->srcpad,
           gst_event_new_stream_start (stream_id));
       g_free (stream_id);
@@ -307,7 +314,9 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
             gst_caps_from_string ("video/x-raw"));
       } else if (decproxy->stream_type == STREAM_AUDIO) {
         gst_pad_set_caps (decproxy->srcpad,
-            gst_caps_from_string ("audio/x-raw"));
+            gst_caps_from_string ("audio/x-media"));
+
+        gst_pad_set_caps (decproxy->srcpad, caps);
       }
 
       res = gst_pad_event_default (pad, parent, event);

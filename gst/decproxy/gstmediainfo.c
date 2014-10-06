@@ -169,6 +169,13 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       posting_media_info_msg (info, media_info);
       g_free (stream_id);
 
+
+      /* if it is not a first caps event then just post media info */
+      if (decproxy->state_flag != GST_STATE_DEC_PROXY_NONE) {
+        res = gst_pad_event_default (pad, parent, event);
+        break;
+      }
+
       if (g_str_has_prefix (structure_name, "audio/"))
         gst_pad_set_caps (info->srcpad, gst_caps_from_string ("audio/x-media"));
       else
