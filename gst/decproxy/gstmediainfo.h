@@ -43,6 +43,8 @@ struct _GstMediaInfo
   GstElement element;
 
   GstPad *sinkpad, *srcpad;
+
+  gboolean set_caps_done;
 };
 
 struct _GstMediaInfoClass

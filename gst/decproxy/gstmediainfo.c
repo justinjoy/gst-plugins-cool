@@ -123,6 +123,8 @@ gst_media_info_init (GstMediaInfo * info)
       gst_pad_new_from_static_template (&gst_media_info_src_pad_template,
       "src");
   gst_element_add_pad (GST_ELEMENT (info), info->srcpad);
+
+  info->set_caps_done = FALSE;
 }
 
 static void
@@ -171,7 +173,7 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
 
       /* if it is not a first caps event then just post media info */
-      if (decproxy->state_flag != GST_STATE_DEC_PROXY_NONE) {
+      if (info->set_caps_done) {
         res = gst_pad_event_default (pad, parent, event);
         break;
       }
@@ -183,6 +185,7 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
             gst_caps_from_string ("subtitle/x-media"));
 
       gst_media_info_set_caps (info, caps);
+      info->set_caps_done = TRUE;
 
       gst_event_unref (event);
     }
