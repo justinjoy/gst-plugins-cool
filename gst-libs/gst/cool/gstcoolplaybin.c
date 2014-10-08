@@ -31,6 +31,8 @@
 
 static GstStaticCaps cool_raw_caps = GST_STATIC_CAPS (COOL_RAW_CAPS);
 
+static void gst_cool_playbin_load_configuration (GstElement * playbin);
+
 static void
 q2_set_property_by_configuration (GstElement * q2)
 {
@@ -246,6 +248,8 @@ gst_cool_playbin_init (GstElement * playbin)
 
   gst_cool_playbin_set_default_sink (playbin);
 
+  gst_cool_playbin_load_configuration (playbin);
+
   return TRUE;
 }
 
@@ -347,4 +351,46 @@ gst_cool_playbin_set_q2_conf (GstElement * playbin, const gchar * firstfield,
   va_start (vaargs, firstfield);
   gst_cool_playbin_set_q2_conf_valist (playbin, firstfield, vaargs);
   va_end (vaargs);
+}
+
+static gboolean
+dot_graph_timeout_cb (GstElement * playbin)
+{
+  GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (playbin),
+      GST_DEBUG_GRAPH_SHOW_ALL, "timeout_dot_graph");
+  g_message ("timout dot-graph created");
+  return TRUE;
+}
+
+static void
+gst_cool_playbin_load_configuration (GstElement * playbin)
+{
+  GError *err = NULL;
+  GKeyFile *config = gst_cool_get_configuration ();
+  gint dot_graph_timeout = 0;
+  const gchar *debug_mode;
+
+  debug_mode = g_key_file_get_string (config, "debug", "DEBUG_MODE", &err);
+  if (err) {
+    GST_WARNING ("Unable to read debug mode: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  /* if debug mode is not enable, do not set debug option */
+  if (g_strcmp0 (debug_mode, "enable") != 0)
+    return;
+
+  dot_graph_timeout =
+      g_key_file_get_integer (config, "debug", "DOT_GRAPH_TIMEOUT", &err);
+  if (err) {
+    GST_WARNING ("Unable to read debug mode: %s", err->message);
+    g_error_free (err);
+    err = NULL;
+  }
+
+  if (dot_graph_timeout) {
+    g_timeout_add (dot_graph_timeout, (GSourceFunc) dot_graph_timeout_cb,
+        playbin);
+  }
 }
