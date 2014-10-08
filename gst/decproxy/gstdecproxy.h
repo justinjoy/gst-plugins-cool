@@ -108,7 +108,8 @@ struct _GstDecProxy
   GstElement *dec_elem;
   GstCaps *caps; /* caps on which to list up actual decoder elements */
 
-  gulong block_id;
+  gulong decproxy_block_id;
+  gulong valve_block_id;
   gulong notify_caps_id;
 
   gboolean active;

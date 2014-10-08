@@ -187,14 +187,14 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
 
   gst_element_add_pad (GST_ELEMENT (decproxy), decproxy->srcpad);
 
-  decproxy->valve_elem = gst_element_factory_make ("valve", "proxy_queue");
+  decproxy->valve_elem = gst_element_factory_make ("valve", "proxy_valve");
 
   if (!decproxy->valve_elem) {
     g_warning ("Cannot make valve element");
     g_assert_not_reached ();
   }
 
-  /* add queue element to decproxy */
+  /* add valve element to decproxy */
   gst_bin_add (GST_BIN_CAST (decproxy), decproxy->valve_elem);
   valve_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src");
   valve_sinkpad = gst_element_get_static_pad (decproxy->valve_elem, "sink");
@@ -209,7 +209,8 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
 
   gst_element_sync_state_with_parent (decproxy->valve_elem);
 
-  decproxy->block_id = 0;
+  decproxy->decproxy_block_id = 0;
+  decproxy->valve_block_id = 0;
   decproxy->caps = NULL;
   decproxy->pending_remove_probe = FALSE;
   decproxy->state_flag = GST_STATE_DEC_PROXY_NONE;
@@ -270,7 +271,7 @@ sinkpad_block_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 
   if (decproxy->pending_remove_probe) {
     decproxy->pending_remove_probe = FALSE;
-    decproxy->block_id = 0;
+    decproxy->decproxy_block_id = 0;
     return GST_PAD_PROBE_REMOVE;
   }
   return GST_PAD_PROBE_OK;
@@ -345,13 +346,13 @@ gst_dec_proxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       res = gst_pad_event_default (pad, parent, event);
 
       GST_DEC_PROXY_LOCK (decproxy);
-      if (!decproxy->block_id &&
+      if (!decproxy->decproxy_block_id &&
           decproxy->state_flag == GST_STATE_DEC_PROXY_NONE) {
-        decproxy->block_id =
+        decproxy->decproxy_block_id =
             gst_pad_add_probe (pad,
             GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, sinkpad_block_cb, decproxy,
             NULL);
-        GST_INFO_OBJECT (pad, "locked pad %ld", decproxy->block_id);
+        GST_INFO_OBJECT (pad, "locked pad %ld", decproxy->decproxy_block_id);
       }
       GST_DEC_PROXY_UNLOCK (decproxy);
       break;
@@ -549,7 +550,7 @@ setup_decoder (GstDecProxy * decproxy)
     return FALSE;
   }
 
-  /* try to get a srcpad from decoder element */
+  /* try to get a srcpad from valve element */
   if (!(val_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src"))) {
     GST_WARNING_OBJECT (decproxy, "Element %s doesn't have a srcpad",
         GST_ELEMENT_NAME (decproxy->valve_elem));
@@ -559,7 +560,7 @@ setup_decoder (GstDecProxy * decproxy)
   /* try to target from ghostpad to srcpad */
   gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad), srcpad);
 
-  /* try to target from ghostpad to sinkpad */
+  /* try to target from valve srcpad to sinkpad */
   gst_pad_link (val_srcpad, sinkpad);
 
   if (!gst_element_sync_state_with_parent (decproxy->dec_elem))
@@ -574,32 +575,23 @@ setup_decoder (GstDecProxy * decproxy)
 static void
 remove_decoder (GstDecProxy * decproxy)
 {
-  GstPad *sinkpad, *val_srcpad;
+  GstPad *val_srcpad, *dec_sinkpad;
 
-  if (!(val_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src"))) {
-    GST_WARNING_OBJECT (decproxy, "Element %s doesn't have a srcpad",
-        GST_ELEMENT_NAME (decproxy->valve_elem));
-    return FALSE;
-  }
-  if (!(sinkpad = gst_element_get_static_pad (decproxy->dec_elem, "sink"))) {
-    GST_WARNING_OBJECT (decproxy, "Element %s doesn't have a sinkpad",
-        GST_ELEMENT_NAME (decproxy->dec_elem));
-    return FALSE;
-  }
+  if (!decproxy->dec_elem)
+    return;
 
-  gst_pad_unlink (val_srcpad, sinkpad);
+  val_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src");
+  dec_sinkpad = gst_element_get_static_pad (decproxy->dec_elem, "sink");
 
+  gst_pad_unlink (val_srcpad, dec_sinkpad);
   gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad), val_srcpad);
-
-  if (decproxy->dec_elem) {
-    GST_DEBUG_OBJECT (decproxy, "removing old decoder element");
-    gst_element_set_state (decproxy->dec_elem, GST_STATE_NULL);
-
-    gst_bin_remove (GST_BIN_CAST (decproxy), decproxy->dec_elem);
-    decproxy->dec_elem = NULL;
-  }
-  g_object_unref (sinkpad);
-  g_object_unref (val_srcpad);
+  gst_element_set_locked_state (decproxy->dec_elem, TRUE);
+  //gst_element_set_state (decproxy->dec_elem, GST_STATE_NULL);
+  gst_bin_remove (GST_BIN_CAST (decproxy), decproxy->dec_elem);
+  decproxy->dec_elem = NULL;
+  GST_DEBUG_OBJECT (decproxy, "removing old decoder element");
+  gst_object_unref (val_srcpad);
+  gst_object_unref (dec_sinkpad);
 }
 
 static void
@@ -614,7 +606,6 @@ remove_valve (GstDecProxy * decproxy)
   if (decproxy->valve_elem) {
     GST_DEBUG_OBJECT (decproxy, "removing valve element");
     gst_element_set_state (decproxy->valve_elem, GST_STATE_NULL);
-
     gst_bin_remove (GST_BIN_CAST (decproxy), decproxy->valve_elem);
     decproxy->valve_elem = NULL;
   }
@@ -634,9 +625,9 @@ caps_notify_cb (GstPad * pad, GParamSpec * unused, GstDecProxy * decproxy)
 
   GST_DEC_PROXY_LOCK (decproxy);
 
-  if (decproxy->block_id) {
-    gst_pad_remove_probe (decproxy->sinkpad, decproxy->block_id);
-    decproxy->block_id = 0;
+  if (decproxy->decproxy_block_id) {
+    gst_pad_remove_probe (decproxy->sinkpad, decproxy->decproxy_block_id);
+    decproxy->decproxy_block_id = 0;
   }
 
   GST_DEC_PROXY_UNLOCK (decproxy);
@@ -657,13 +648,28 @@ deactive_event_probe_cb (GstPad * pad, GstPadProbeInfo * info,
     gpointer user_data)
 {
   GstDecProxy *decproxy = GST_DEC_PROXY (user_data);
+  GstEvent *event = GST_EVENT (GST_PAD_PROBE_INFO_DATA (info));
+  GstPad *val_srcpad;
+
 
   if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_DATA (info)) != GST_EVENT_EOS)
     return GST_PAD_PROBE_OK;
-  GST_INFO_OBJECT (decproxy, "deactive_event_probe_cb");
+
+  GST_INFO_OBJECT (pad, "deactive_event_probe_cb");
   GST_DEC_PROXY_LOCK (decproxy);
+  val_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src");
+  gst_event_unref (event);
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
+
   remove_decoder (decproxy);
+  GST_INFO_OBJECT (decproxy, "end remove decoder");
+
+  if (decproxy->valve_block_id) {
+    gst_pad_remove_probe (val_srcpad, decproxy->valve_block_id);
+    GST_INFO_OBJECT (val_srcpad, "remove the probe");
+    decproxy->valve_block_id = 0;
+  }
+  gst_object_unref (val_srcpad);
   GST_DEC_PROXY_UNLOCK (decproxy);
   return GST_PAD_PROBE_DROP;
 }
@@ -678,7 +684,7 @@ static GstPadProbeReturn
 multi_block_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 {
   GstDecProxy *decproxy = GST_DEC_PROXY (user_data);
-  GstPad *dec_elem_sink, *dec_elem_src;
+  GstPad *dec_sinkpad, *dec_srcpad, *val_srcpad;
   GST_INFO_OBJECT (pad, "call multi_block_cb");
 
   if (!decproxy->dec_elem) {
@@ -687,18 +693,26 @@ multi_block_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
   }
 
   GST_DEC_PROXY_LOCK (decproxy);
-  dec_elem_sink = gst_element_get_static_pad (decproxy->dec_elem, "sink");
-  dec_elem_src = gst_element_get_static_pad (decproxy->dec_elem, "src");
+  dec_srcpad = gst_element_get_static_pad (decproxy->dec_elem, "src");
+  //val_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src");
+  dec_sinkpad = gst_element_get_static_pad (decproxy->dec_elem, "sink");
 
   /* remove the probe first */
-  gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
-  gst_pad_add_probe (dec_elem_src,
+  //gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
+  // gst_pad_unlink(val_srcpad, dec_sinkpad);
+  //gst_object_unref (val_srcpad);
+
+  gst_pad_add_probe (dec_srcpad,
       GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
       deactive_event_probe_cb, decproxy, NULL);
+
   GST_DEC_PROXY_UNLOCK (decproxy);
-  gst_pad_send_event (dec_elem_sink, gst_event_new_eos ());
-  gst_object_unref (dec_elem_src);
-  gst_object_unref (dec_elem_sink);
+
+  GST_INFO_OBJECT (pad, "Send EOS event to decoder sinkpad.");
+  gst_pad_send_event (dec_sinkpad, gst_event_new_eos ());
+
+  gst_object_unref (dec_sinkpad);
+  gst_object_unref (dec_srcpad);
 
   return GST_PAD_PROBE_OK;
 }
@@ -753,16 +767,17 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
           if (decproxy->state_flag == GST_STATE_DEC_PROXY_DEACTIVE) {
             /* Pad status changed deactive to active. */
             GST_DEBUG_OBJECT (pad, "this pad switched [deactive] to [active]");
-            if (!decproxy->block_id) {
-              decproxy->block_id =
+
+            if (!decproxy->decproxy_block_id) {
+              decproxy->decproxy_block_id =
                   gst_pad_add_probe (decproxy->sinkpad,
                   GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, NULL, decproxy, NULL);
             }
           }
+
           if (decproxy->state_flag == GST_STATE_DEC_PROXY_NONE)
             GST_DEBUG_OBJECT (pad, "this pad switched [null] to [active]");
           GST_DEC_PROXY_UNLOCK (decproxy);
-
           if (!setup_decoder (decproxy))
             goto decoder_element_failed;
 
@@ -771,34 +786,58 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
           if (!gst_pad_is_blocking (decproxy->sinkpad))
             decproxy->pending_remove_probe = TRUE;
 
-          if (decproxy->block_id) {
-            gst_pad_remove_probe (decproxy->sinkpad, decproxy->block_id);
-            decproxy->block_id = 0;
+          if (decproxy->decproxy_block_id) {
+            gst_pad_remove_probe (decproxy->sinkpad,
+                decproxy->decproxy_block_id);
+            decproxy->decproxy_block_id = 0;
           }
+          GstPad *dec_sinkpad =
+              gst_element_get_static_pad (decproxy->dec_elem, "sink");
+          if (decproxy->state_flag == GST_STATE_DEC_PROXY_DEACTIVE) {
+            gst_pad_send_event (decproxy->srcpad, gst_event_new_reconfigure ());
+            gst_pad_send_event (dec_sinkpad,
+                gst_event_new_caps (decproxy->caps));
+            GST_DEBUG_OBJECT (decproxy, "gst_event_new_caps ");
+          }
+          gst_object_unref (dec_sinkpad);
           decproxy->state_flag = GST_STATE_DEC_PROXY_ACTIVE;
           GST_DEC_PROXY_UNLOCK (decproxy);
         } else if (!decproxy->active
             && (decproxy->state_flag != GST_STATE_DEC_PROXY_DEACTIVE)) {
           GST_INFO_OBJECT (pad, "deactive pad %s:%s", GST_DEBUG_PAD_NAME (pad));
+
           GST_DEC_PROXY_LOCK (decproxy);
+
           if (decproxy->state_flag == GST_STATE_DEC_PROXY_ACTIVE) {
+            GstPad *valve_srcpad =
+                gst_element_get_static_pad (decproxy->valve_elem, "src");
             /* Pad status changed active to deactive. */
             GST_DEBUG_OBJECT (pad, "this pad switched [active] to [deactive]");
-            gst_pad_add_probe (decproxy->sinkpad,
-                GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, multi_block_cb, decproxy,
-                NULL);
+            if (!decproxy->valve_block_id) {
+              decproxy->valve_block_id = gst_pad_add_probe (valve_srcpad,
+                  GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM, multi_block_cb, decproxy,
+                  NULL);
+              gst_object_unref (valve_srcpad);
+              remove_decoder (decproxy);
+              if (decproxy->valve_block_id) {
+                gst_pad_remove_probe (valve_srcpad, decproxy->valve_block_id);
+                GST_INFO_OBJECT (valve_srcpad, "remove the probe");
+                decproxy->valve_block_id = 0;
+              }
+            }
           }
           if (decproxy->state_flag == GST_STATE_DEC_PROXY_NONE) {
             GST_DEBUG_OBJECT (pad, "this pad switched [null] to [deactive]");
-
             if (!gst_pad_is_blocking (decproxy->sinkpad))
               decproxy->pending_remove_probe = TRUE;
-            if (decproxy->block_id) {
-              gst_pad_remove_probe (decproxy->sinkpad, decproxy->block_id);
-              decproxy->block_id = 0;
+            if (decproxy->decproxy_block_id) {
+              gst_pad_remove_probe (decproxy->sinkpad,
+                  decproxy->decproxy_block_id);
+              decproxy->decproxy_block_id = 0;
             }
           }
           decproxy->state_flag = GST_STATE_DEC_PROXY_DEACTIVE;
+
           GST_DEC_PROXY_UNLOCK (decproxy);
         }
         gst_event_unref (event);
