@@ -144,7 +144,6 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
 {
   GstPadTemplate *sink_pad_template, *src_pad_template;
   GstElementClass *element_class = GST_ELEMENT_GET_CLASS (decproxy);
-  GstPad *valve_sinkpad, *valve_srcpad;
 
   /* get sinkpad template */
   sink_pad_template =
@@ -187,37 +186,14 @@ gst_dec_proxy_init (GstDecProxy * decproxy)
 
   gst_element_add_pad (GST_ELEMENT (decproxy), decproxy->srcpad);
 
-  decproxy->valve_elem = gst_element_factory_make ("valve", "proxy_valve");
-
-  if (!decproxy->valve_elem) {
-    g_warning ("Cannot make valve element");
-    g_assert_not_reached ();
-  }
-
-  /* add valve element to decproxy */
-  gst_bin_add (GST_BIN_CAST (decproxy), decproxy->valve_elem);
-  valve_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src");
-  valve_sinkpad = gst_element_get_static_pad (decproxy->valve_elem, "sink");
-
-  /* try to target from ghostpad to sinkpad */
-  gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->sinkpad),
-      valve_sinkpad);
-
-  /* try to target from ghostpad to srcpad */
-  gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad),
-      valve_srcpad);
-
-  gst_element_sync_state_with_parent (decproxy->valve_elem);
-
   decproxy->decproxy_block_id = 0;
   decproxy->valve_block_id = 0;
   decproxy->caps = NULL;
   decproxy->pending_remove_probe = FALSE;
   decproxy->state_flag = GST_STATE_DEC_PROXY_NONE;
   decproxy->resource_info = NULL;
+  decproxy->valve_elem = NULL;
 
-  g_object_unref (valve_srcpad);
-  g_object_unref (valve_sinkpad);
   g_mutex_init (&decproxy->lock);
 }
 
@@ -585,7 +561,7 @@ remove_decoder (GstDecProxy * decproxy)
 
   gst_pad_unlink (val_srcpad, dec_sinkpad);
   gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad), val_srcpad);
-  gst_element_set_locked_state (decproxy->dec_elem, TRUE);
+  // FIXME: set_state NULL should be done
   //gst_element_set_state (decproxy->dec_elem, GST_STATE_NULL);
   gst_bin_remove (GST_BIN_CAST (decproxy), decproxy->dec_elem);
   decproxy->dec_elem = NULL;
@@ -684,7 +660,7 @@ static GstPadProbeReturn
 multi_block_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 {
   GstDecProxy *decproxy = GST_DEC_PROXY (user_data);
-  GstPad *dec_sinkpad, *dec_srcpad, *val_srcpad;
+  GstPad *dec_sinkpad, *dec_srcpad;
   GST_INFO_OBJECT (pad, "call multi_block_cb");
 
   if (!decproxy->dec_elem) {
@@ -694,13 +670,7 @@ multi_block_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 
   GST_DEC_PROXY_LOCK (decproxy);
   dec_srcpad = gst_element_get_static_pad (decproxy->dec_elem, "src");
-  //val_srcpad = gst_element_get_static_pad (decproxy->valve_elem, "src");
   dec_sinkpad = gst_element_get_static_pad (decproxy->dec_elem, "sink");
-
-  /* remove the probe first */
-  //gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
-  // gst_pad_unlink(val_srcpad, dec_sinkpad);
-  //gst_object_unref (val_srcpad);
 
   gst_pad_add_probe (dec_srcpad,
       GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
@@ -728,6 +698,36 @@ gst_dec_proxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       if (gst_event_has_name (event, "acquired-resource")) {
         const GstStructure *st = gst_event_get_structure (event);
+        GstPad *valve_sinkpad, *valve_srcpad;
+        if (!decproxy->valve_elem) {
+          decproxy->valve_elem =
+              gst_element_factory_make ("valve", "proxy_queue");
+
+          if (!decproxy->valve_elem) {
+            g_warning ("Cannot make valve element");
+            g_assert_not_reached ();
+          }
+          GST_INFO_OBJECT (decproxy, "complete to add valve element");
+
+          /* add queue element to decproxy */
+          gst_bin_add (GST_BIN_CAST (decproxy), decproxy->valve_elem);
+          valve_srcpad =
+              gst_element_get_static_pad (decproxy->valve_elem, "src");
+          valve_sinkpad =
+              gst_element_get_static_pad (decproxy->valve_elem, "sink");
+
+          /* try to target from ghostpad to sinkpad */
+          gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->sinkpad),
+              valve_sinkpad);
+
+          /* try to target from ghostpad to srcpad */
+          gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (decproxy->srcpad),
+              valve_srcpad);
+
+          gst_element_sync_state_with_parent (decproxy->valve_elem);
+          g_object_unref (valve_srcpad);
+          g_object_unref (valve_sinkpad);
+        }
 
         gst_structure_get_boolean (st, "active", &decproxy->active);
 
