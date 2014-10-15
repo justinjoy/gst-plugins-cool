@@ -31,6 +31,7 @@
     "text/x-avi-unknown;" \
     "application/x-ass;" \
     "application/x-ssa;" \
+    "application/x-teletext;" \
     "subpicture/x-dvd;" \
     "subpicture/x-dvb;" \
     "subpicture/x-xsub;" \
