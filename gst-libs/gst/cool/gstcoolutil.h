@@ -31,6 +31,8 @@ GstStructure *  gst_cool_caps_to_info           (GstCaps * caps,
 GstStructure *  gst_cool_taglist_to_info        (GstTagList * taglist,
                                                  char *stream_id, const char *mime_type);
 
+guint           gst_cool_find_type              (const gchar * mime_type);
+
 G_END_DECLS
 
 #endif
