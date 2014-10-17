@@ -2,7 +2,7 @@ plugin_LTLIBRARIES = libgstdecproxy.la
 
 # sources used to compile this plug-in
 libgstdecproxy_la_SOURCES = \
-	gstdecproxy.c \
+	gstdecproxy2.c \
 	gstmediainfo.c \
 	gstfakeadec.c \
 	gstfakevdec.c \
@@ -20,6 +20,7 @@ libgstdecproxy_la_LIBTOOLFLAGS = --tag=disable-static
 
 noinst_HEADERS = \
 	gstdecproxy.h \
+	gstdecproxy2.h \
 	gstfakeadec.h \
 	gstfakevdec.h \
 	gstmediainfo.h
