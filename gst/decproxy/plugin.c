@@ -5,6 +5,8 @@
 #include <gst/gst.h>
 #include "gstdecproxy.h"
 #include "gstmediainfo.h"
+#include "gstfakeadec.h"
+#include "gstfakevdec.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
@@ -15,6 +17,14 @@ plugin_init (GstPlugin * plugin)
 
   if (!gst_element_register (plugin, "mediainfo", GST_RANK_NONE,
           GST_TYPE_MEDIA_INFO))
+    return FALSE;
+
+  if (!gst_element_register (plugin, "fakeadec", GST_RANK_NONE,
+          GST_TYPE_FAKEADEC))
+    return FALSE;
+
+  if (!gst_element_register (plugin, "fakevdec", GST_RANK_NONE,
+          GST_TYPE_FAKEVDEC))
     return FALSE;
 
   return TRUE;
