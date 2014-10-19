@@ -50,9 +50,9 @@ append_media_field (GQuark field_id, const GValue * value, gpointer user_data)
 
 /* Return whether stream type is video, audio or subtitle.
   * To add media-info structure.
-  * Returns : (guint) typee or STREAM_LAST if mime_type is NULL.
+  * Returns : (GstCoolStreamType) type or GST_COOL_STREAM_TYPE_UNKNOWN if mime_type is NULL.
   */
-guint
+GstCoolStreamType
 gst_cool_find_type (const gchar * mime_type)
 {
   g_return_val_if_fail (mime_type != NULL, STREAM_LAST);
@@ -80,7 +80,7 @@ gst_cool_caps_to_info (GstCaps * caps, char *stream_id)
   GstStructure *s = gst_caps_get_structure (caps, 0);
   GstStructure *media_info;
   const gchar *mime_type = gst_structure_get_name (s);
-  guint type = gst_cool_find_type (mime_type);
+  GstCoolStreamType type = gst_cool_find_type (mime_type);
 
   GST_DEBUG ("getting caps information: %" GST_PTR_FORMAT, caps);
 
@@ -109,7 +109,7 @@ gst_cool_taglist_to_info (GstTagList * taglist, char *stream_id,
   const gchar *str_structure;
   GstStructure *s;
   GstStructure *media_info;
-  guint type = gst_cool_find_type (mime_type);
+  GstCoolStreamType type = gst_cool_find_type (mime_type);
 
   GST_DEBUG ("getting taglist information: %" GST_PTR_FORMAT, taglist);
 
