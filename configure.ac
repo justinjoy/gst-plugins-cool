@@ -119,6 +119,7 @@ AG_GST_CHECK_PLUGIN(dynappsrc)
 AG_GST_CHECK_PLUGIN(streamiddemux)
 AG_GST_CHECK_PLUGIN(tsinkbin)
 AG_GST_CHECK_PLUGIN(textbin)
+AG_GST_CHECK_PLUGIN(fakedec)
 
 dnl check for documentation tools
 GTK_DOC_CHECK([1.12])
@@ -222,6 +223,7 @@ common/Makefile
 common/m4/Makefile
 gst/Makefile
 gst/decproxy/Makefile
+gst/fakedec/Makefile
 gst/httpextbin/Makefile
 gst/dynappsrc/Makefile
 gst/streamiddemux/Makefile

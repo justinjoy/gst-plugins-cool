@@ -3,18 +3,18 @@
 #endif
 
 #include <gst/gst.h>
-#include "gstdecproxy2.h"
-#include "gstmediainfo.h"
+#include "gstfakeadec.h"
+#include "gstfakevdec.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "decproxy", GST_RANK_NONE,
-          GST_TYPE_DECPROXY))
+  if (!gst_element_register (plugin, "fakeadec", GST_RANK_NONE,
+          GST_TYPE_FAKEADEC))
     return FALSE;
 
-  if (!gst_element_register (plugin, "mediainfo", GST_RANK_NONE,
-          GST_TYPE_MEDIA_INFO))
+  if (!gst_element_register (plugin, "fakevdec", GST_RANK_NONE,
+          GST_TYPE_FAKEVDEC))
     return FALSE;
 
   return TRUE;
@@ -22,6 +22,6 @@ plugin_init (GstPlugin * plugin)
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    decproxy,
-    "Decoder Proxy",
+    fakedec,
+    "Fake Decoder",
     plugin_init, VERSION, "LGPL", GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN);

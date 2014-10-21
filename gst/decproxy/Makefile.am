@@ -4,8 +4,6 @@ plugin_LTLIBRARIES = libgstdecproxy.la
 libgstdecproxy_la_SOURCES = \
 	gstdecproxy2.c \
 	gstmediainfo.c \
-	gstfakeadec.c \
-	gstfakevdec.c \
 	plugin.c
 
 # compiler and linker flags used to compile this plugin, set in configure.ac
@@ -21,6 +19,4 @@ libgstdecproxy_la_LIBTOOLFLAGS = --tag=disable-static
 noinst_HEADERS = \
 	gstdecproxy.h \
 	gstdecproxy2.h \
-	gstfakeadec.h \
-	gstfakevdec.h \
 	gstmediainfo.h
