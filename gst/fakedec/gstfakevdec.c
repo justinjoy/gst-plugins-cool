@@ -1,8 +1,8 @@
 /* GStreamer Plugins Cool
  * Copyright (C) 2013-2014 LG Electronics, Inc.
- *	Author : Wonchul Lee <wonchul86.lee@lge.com>
- *	         Jeongseok Kim <jeongseok.kim@lge.com>
- *	         HoonHee Lee <hoonhee.lee@lge.com>
+ *  Author : Wonchul Lee <wonchul86.lee@lge.com>
+ *           Jeongseok Kim <jeongseok.kim@lge.com>
+ *           HoonHee Lee <hoonhee.lee@lge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -44,33 +44,33 @@ GST_STATIC_PAD_TEMPLATE ("src",
 GST_DEBUG_CATEGORY_STATIC (fakevdec_debug);
 #define GST_CAT_DEFAULT fakevdec_debug
 
+static gboolean gst_fakevdec_set_caps (GstFakeVdec * fakevdec, GstCaps * caps);
+static gboolean gst_fakevdec_sink_event (GstPad * pad, GstObject * parent,
+    GstEvent * event);
+static GstFlowReturn gst_fakevdec_chain (GstPad * pad, GstObject * parent,
+    GstBuffer * buffer);
+
 #define gst_fakevdec_parent_class parent_class
-G_DEFINE_TYPE (GstFakeVdec, gst_fakevdec, GST_TYPE_VIDEO_DECODER);
+G_DEFINE_TYPE (GstFakeVdec, gst_fakevdec, GST_TYPE_ELEMENT);
 
-static void gst_fakevdec_finalize (GObject * object);
 
-/* GstVideoDecoder base class method */
-static gboolean gst_fakevdec_open (GstVideoDecoder * decoder);
-static gboolean gst_fakevdec_close (GstVideoDecoder * decoder);
-static gboolean gst_fakevdec_start (GstVideoDecoder * decoder);
-static gboolean gst_fakevdec_stop (GstVideoDecoder * decoder);
-static gboolean gst_fakevdec_set_format (GstVideoDecoder * decoder,
-    GstVideoCodecState * state);
-static gboolean gst_fakevdec_flush (GstVideoDecoder * decoder);
-static GstFlowReturn gst_fakevdec_finish (GstVideoDecoder * decoder);
-static GstFlowReturn gst_fakevdec_handle_frame (GstVideoDecoder * decoder,
-    GstVideoCodecFrame * frame);
-static gboolean gst_fakevdec_decide_allocation (GstVideoDecoder * decoder,
-    GstQuery * query);
+static gboolean
+gst_fakevdec_set_caps (GstFakeVdec * fakevdec, GstCaps * caps)
+{
+  gboolean ret;
+  GstCaps *outcaps;
+
+  outcaps = gst_caps_new_empty_simple ("video/x-raw");
+  ret = gst_pad_set_caps (fakevdec->srcpad, outcaps);
+  gst_caps_unref (outcaps);
+
+  return ret;
+}
 
 static void
 gst_fakevdec_class_init (GstFakeVdecClass * klass)
 {
-  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
-  GstVideoDecoderClass *video_decoder_class = GST_VIDEO_DECODER_CLASS (klass);
-
-  gobject_class->finalize = gst_fakevdec_finalize;
 
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&gst_fakevdec_src_pad_template));
@@ -80,19 +80,7 @@ gst_fakevdec_class_init (GstFakeVdecClass * klass)
   gst_element_class_set_static_metadata (element_class, "Fake Video decoder",
       "Codec/Decoder/Video",
       "Pass data to backend decoder",
-      "Wonchul Lee <wonchul86.lee@lge.com>,Jeongseok Kim <Jeongseok Kim@lge.com>,HoonHee Lee <hoonhee.lee@lge.com>");
-
-  video_decoder_class->open = GST_DEBUG_FUNCPTR (gst_fakevdec_open);
-  video_decoder_class->close = GST_DEBUG_FUNCPTR (gst_fakevdec_close);
-  video_decoder_class->start = GST_DEBUG_FUNCPTR (gst_fakevdec_start);
-  video_decoder_class->stop = GST_DEBUG_FUNCPTR (gst_fakevdec_stop);
-  video_decoder_class->flush = GST_DEBUG_FUNCPTR (gst_fakevdec_flush);
-  video_decoder_class->set_format = GST_DEBUG_FUNCPTR (gst_fakevdec_set_format);
-  video_decoder_class->handle_frame =
-      GST_DEBUG_FUNCPTR (gst_fakevdec_handle_frame);
-  video_decoder_class->finish = GST_DEBUG_FUNCPTR (gst_fakevdec_finish);
-  video_decoder_class->decide_allocation =
-      GST_DEBUG_FUNCPTR (gst_fakevdec_decide_allocation);
+      "Wonchul Lee <wonchul86.lee@lge.com>, Jeongseok Kim <jeongseok.kim@lge.com>");
 
   GST_DEBUG_CATEGORY_INIT (fakevdec_debug, "fakevdec", 0, "Fake video decoder");
 }
@@ -100,103 +88,59 @@ gst_fakevdec_class_init (GstFakeVdecClass * klass)
 static void
 gst_fakevdec_init (GstFakeVdec * fakevdec)
 {
-  gst_video_decoder_set_packetized (GST_VIDEO_DECODER (fakevdec), TRUE);
-  //gst_video_decoder_set_needs_format (GST_VIDEO_DECODER (fakevdec), TRUE);
+  fakevdec->sinkpad =
+      gst_pad_new_from_static_template (&gst_fakevdec_sink_pad_template,
+      "sink");
+  gst_pad_set_event_function (fakevdec->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_fakevdec_sink_event));
+  gst_pad_set_chain_function (fakevdec->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_fakevdec_chain));
+  gst_element_add_pad (GST_ELEMENT (fakevdec), fakevdec->sinkpad);
 
-  fakevdec->src_caps_set = FALSE;
-}
-
-static void
-gst_fakevdec_finalize (GObject * object)
-{
-  G_OBJECT_CLASS (parent_class)->finalize (object);
-}
-
-static gboolean
-gst_fakevdec_open (GstVideoDecoder * decoder)
-{
-  return TRUE;
+  fakevdec->srcpad =
+      gst_pad_new_from_static_template (&gst_fakevdec_src_pad_template, "src");
+  gst_element_add_pad (GST_ELEMENT (fakevdec), fakevdec->srcpad);
 }
 
 static gboolean
-gst_fakevdec_close (GstVideoDecoder * decoder)
+gst_fakevdec_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
-  return TRUE;
-}
+  GstFakeVdec *fakevdec;
+  gboolean res;
 
-static gboolean
-gst_fakevdec_set_format (GstVideoDecoder * decoder, GstVideoCodecState * state)
-{
-  GstFakeVdec *fakevdec = GST_FAKEVDEC (decoder);
-  GstCaps *caps = NULL;
+  fakevdec = GST_FAKEVDEC (parent);
 
-  /* try to set caps */
-  if (!fakevdec->src_caps_set && state->caps) {
-    GstCaps *output_caps;
-
-    fakevdec->src_caps_set = TRUE;
-
-    GST_DEBUG_OBJECT (fakevdec, "got caps %" GST_PTR_FORMAT, state->caps);
-
-    output_caps = gst_caps_new_empty_simple ("video/x-raw");
-
-    gst_pad_set_caps (decoder->srcpad, output_caps);
-    gst_caps_unref (output_caps);
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CAPS:
+    {
+      if (!gst_pad_has_current_caps (fakevdec->srcpad)) {
+        GstCaps *caps;
+        gst_event_parse_caps (event, &caps);
+        gst_fakevdec_set_caps (fakevdec, caps);
+      }
+      gst_event_unref (event);
+      res = TRUE;
+    }
+      break;
+    default:
+      res = gst_pad_event_default (pad, parent, event);
+      break;
   }
 
-  return TRUE;
+  return res;
 }
 
-static gboolean
-gst_fakevdec_start (GstVideoDecoder * decoder)
-{
-  return TRUE;
-}
-
-static gboolean
-gst_fakevdec_stop (GstVideoDecoder * decoder)
-{
-  return TRUE;
-}
-
-static gboolean
-gst_fakevdec_flush (GstVideoDecoder * decoder)
-{
-  return TRUE;
-}
 
 static GstFlowReturn
-gst_fakevdec_finish (GstVideoDecoder * decoder)
+gst_fakevdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 {
-  return GST_FLOW_OK;
-}
+  GstFakeVdec *fakevdec;
+  GstFlowReturn ret;
 
-static gboolean
-gst_fakevdec_decide_allocation (GstVideoDecoder * decoder, GstQuery * query)
-{
-  /* Now chain up to the parent class to guarantee that we can
-   * get a buffer pool from the query */
-  if (!GST_VIDEO_DECODER_CLASS (parent_class)->decide_allocation (decoder,
-          query))
-    return FALSE;
+  fakevdec = GST_FAKEVDEC (parent);
 
-  return TRUE;
-}
+  ret = gst_pad_push (fakevdec->srcpad, buffer);
 
-static GstFlowReturn
-gst_fakevdec_handle_frame (GstVideoDecoder * decoder,
-    GstVideoCodecFrame * frame)
-{
-  //GstFakeVdec *fakevdec = GST_FAKEVDEC (decoder);
-  GstBuffer *buf = frame->input_buffer;
+  return ret;
 
-  /* no draining etc */
-  if (G_UNLIKELY (!buf))
-    return GST_FLOW_OK;
-
-  GST_DEBUG_OBJECT (decoder, "got buffer %" GST_PTR_FORMAT, buf);
-
-  gst_video_codec_frame_unref (frame);
-
-  return GST_FLOW_OK;
 }

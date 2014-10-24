@@ -1,8 +1,8 @@
 /* GStreamer Plugins Cool
  * Copyright (C) 2013-2014 LG Electronics, Inc.
- *	Author : Wonchul Lee <wonchul86.lee@lge.com>
- *	         Jeongseok Kim <jeongseok.kim@lge.com>
- *	         HoonHee Lee <hoonhee.lee@lge.com>
+ *  Author : Wonchul Lee <wonchul86.lee@lge.com>
+ *           Jeongseok Kim <jeongseok.kim@lge.com>
+ *           HoonHee Lee <hoonhee.lee@lge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -24,8 +24,6 @@
 #define __GST_FAKEVDEC_H__
 
 #include <gst/gst.h>
-#include <gst/video/video.h>
-#include <gst/video/gstvideodecoder.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_FAKEVDEC \
@@ -43,14 +41,14 @@ typedef struct _GstFakeVdecClass GstFakeVdecClass;
 
 struct _GstFakeVdec
 {
-  GstVideoDecoder element;
+  GstElement element;
 
-  gboolean src_caps_set;
+  GstPad *sinkpad, *srcpad;
 };
 
 struct _GstFakeVdecClass
 {
-  GstVideoDecoderClass parent_class;
+  GstElementClass parent_class;
 };
 
 GType gst_fakevdec_get_type (void);

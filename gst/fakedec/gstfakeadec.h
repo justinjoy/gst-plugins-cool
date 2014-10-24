@@ -1,8 +1,8 @@
 /* GStreamer Plugins Cool
  * Copyright (C) 2013-2014 LG Electronics, Inc.
- *	Author : Wonchul Lee <wonchul86.lee@lge.com>
- *	         Jeongseok Kim <jeongseok.kim@lge.com>
- *	         HoonHee Lee <hoonhee.lee@lge.com>
+ *  Author : Wonchul Lee <wonchul86.lee@lge.com>
+ *           Jeongseok Kim <jeongseok.kim@lge.com>
+ *           HoonHee Lee <hoonhee.lee@lge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -24,8 +24,6 @@
 #define __GST_FAKEADEC_H__
 
 #include <gst/gst.h>
-#include <gst/audio/gstaudiodecoder.h>
-#include <gst/audio/audio.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_FAKEADEC \
@@ -43,14 +41,14 @@ typedef struct _GstFakeAdecClass GstFakeAdecClass;
 
 struct _GstFakeAdec
 {
-  GstAudioDecoder element;
+  GstElement element;
 
-  gboolean src_caps_set;
+  GstPad *sinkpad, *srcpad;
 };
 
 struct _GstFakeAdecClass
 {
-  GstAudioDecoderClass parent_class;
+  GstElementClass parent_class;
 };
 
 GType gst_fakeadec_get_type (void);
