@@ -228,6 +228,8 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       gst_structure_get_int (media_info, "type", &decproxy->type);
 
       GST_DECPROXY_UNLOCK (decproxy);
+
+      ret = gst_pad_event_default (pad, parent, event);
     }
     default:
       ret = gst_pad_event_default (pad, parent, event);
@@ -584,19 +586,19 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
     GST_WARNING_OBJECT (decproxy, "Couldn't sync state with parent");
   }
 
-  target_pad = gst_element_get_static_pad (decproxy, "src");
-
-  /* set up the outcaps in order to finish auto-plugging */
-  if (decproxy->type == GST_COOL_STREAM_TYPE_VIDEO)
-    gst_pad_set_caps (target_pad, gst_caps_from_string ("video/x-raw"));
-  else if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO)
-    gst_pad_set_caps (target_pad, gst_caps_from_string ("audio/x-media"));
+  target_pad = gst_element_get_static_pad (GST_ELEMENT_CAST (decproxy), "src");
 
   /* send stream-start event to downsteram to guarantee order of track */
   stream_id = gst_pad_get_stream_id (pad);
   GST_DEBUG_OBJECT (pad, "try to send stream-start event : %s", stream_id);
   gst_pad_push_event (target_pad, gst_event_new_stream_start (stream_id));
   g_free (stream_id);
+
+  /* set up the outcaps in order to finish auto-plugging */
+  if (decproxy->type == GST_COOL_STREAM_TYPE_VIDEO)
+    gst_pad_set_caps (target_pad, gst_caps_from_string ("video/x-raw"));
+  else if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO)
+    gst_pad_set_caps (target_pad, gst_caps_from_string ("audio/x-media"));
 
   // FIXME: send caps event with raw mime-type to downstream to configure audio/video sink chain
   if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) == GST_EVENT_CAPS) {
@@ -614,12 +616,10 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 
       GST_DEBUG_OBJECT (pad, "try to send caps event %" GST_PTR_FORMAT, caps);
       gst_pad_push_event (target_pad, gst_event_new_caps (caps));
-      gst_caps_unref (caps);
     } else if (decproxy->type == GST_COOL_STREAM_TYPE_VIDEO) {
       caps = gst_caps_new_empty_simple ("video/x-raw");
       GST_DEBUG_OBJECT (pad, "try to send caps event %" GST_PTR_FORMAT, caps);
       gst_pad_push_event (target_pad, gst_event_new_caps (caps));
-      gst_caps_unref (caps);
     }
   }
   gst_object_unref (target_pad);
