@@ -205,9 +205,9 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CAPS:
     {
-      GstMessage *message;
-      GstCaps *caps;
-      GstStructure *media_info;
+      GstMessage *message = NULL;
+      GstCaps *caps = NULL;
+      GstStructure *media_info = NULL;
       gchar *stream_id;
 
       gst_event_parse_caps (event, &caps);
@@ -530,9 +530,9 @@ replace_decoder (GstDecProxy * decproxy, gboolean active)
 static GstPadProbeReturn
 analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 {
-  GstPad *target_pad;
-  GstCaps *caps;
-  GstStructure *s;
+  GstPad *target_pad = NULL;
+  GstCaps *caps = NULL;
+  GstStructure *s = NULL;
   gchar *stream_id = NULL;
 
   GstDecProxy *decproxy = GST_DECPROXY (user_data);
@@ -601,12 +601,14 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
   // FIXME: send caps event with raw mime-type to downstream to configure audio/video sink chain
   if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) == GST_EVENT_CAPS) {
     if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO) {
-      gint rate, channels;
+      gint rate = 44100;
+      gint channels = 1;
+
       caps = gst_caps_new_empty_simple ("audio/x-raw");
       gst_structure_get_int (s, "rate", &rate);
       gst_structure_get_int (s, "channels", &channels);
 
-      gst_caps_set_simple (caps, "format", G_TYPE_STRING, "F32LE",
+      gst_caps_set_simple (caps, "format", G_TYPE_STRING, "S32LE",
           "layout", G_TYPE_STRING, "interleaved", "rate", G_TYPE_INT, rate,
           "channels", G_TYPE_INT, channels, NULL);
 
