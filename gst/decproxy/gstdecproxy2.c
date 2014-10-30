@@ -442,7 +442,12 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
 
   GstDecProxy *decproxy = GST_DECPROXY (user_data);
 
+  if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_DATA (info)) != GST_EVENT_EOS)
+    return GST_PAD_PROBE_PASS;
+
   GST_DEBUG_OBJECT (pad, "blocked");
+
+  gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
 
   if (decproxy->state == GST_DECPROXY_STATE_PUPPET)
     decoder = decproxy->decoder;
@@ -472,7 +477,7 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
   else
     decproxy->decoder = decoder;
 
-  return GST_PAD_PROBE_REMOVE;
+  return GST_PAD_PROBE_DROP;
 }
 
 static GstPadProbeReturn
