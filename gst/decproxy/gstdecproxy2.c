@@ -229,7 +229,45 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       GST_DECPROXY_UNLOCK (decproxy);
 
+      g_free (stream_id);
       ret = gst_pad_event_default (pad, parent, event);
+      break;
+    }
+    case GST_EVENT_TAG:
+    {
+      GstTagList *tags;
+      GstMessage *message = NULL;
+      GstCaps *caps = NULL;
+      GstStructure *media_info = NULL;
+      gchar *stream_id;
+      const gchar *mime_type;
+
+      gst_event_parse_tag (event, &tags);
+      GST_DEBUG_OBJECT (pad, "got taglist %" GST_PTR_FORMAT, tags);
+
+      GST_DECPROXY_LOCK (decproxy);
+      caps = gst_pad_get_current_caps (pad);
+      mime_type = gst_structure_get_name (gst_caps_get_structure (caps, 0));
+
+      /* post media-info */
+      stream_id = gst_pad_get_stream_id (pad);
+      media_info = gst_cool_taglist_to_info (tags, stream_id, mime_type);
+      message =
+          gst_message_new_custom (GST_MESSAGE_APPLICATION,
+          GST_OBJECT (decproxy), media_info);
+
+      GST_INFO_OBJECT (decproxy, "posted media-info message: %" GST_PTR_FORMAT,
+          media_info);
+
+      gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
+      gst_structure_get_int (media_info, "type", &decproxy->type);
+
+      GST_DECPROXY_UNLOCK (decproxy);
+
+      gst_caps_unref (caps);
+      g_free (stream_id);
+      ret = gst_pad_event_default (pad, parent, event);
+      break;
     }
     default:
       ret = gst_pad_event_default (pad, parent, event);
