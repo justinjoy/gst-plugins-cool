@@ -212,20 +212,23 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       gst_event_parse_caps (event, &caps);
 
-      GST_DEBUG_OBJECT (decproxy, "recieved cpas %" GST_PTR_FORMAT, caps);
+      GST_DEBUG_OBJECT (decproxy, "recieved caps %" GST_PTR_FORMAT, caps);
       GST_DECPROXY_LOCK (decproxy);
 
-      /* post media-info */
       stream_id = gst_pad_get_stream_id (pad);
       media_info = gst_cool_caps_to_info (caps, stream_id);
+
+      /* store type of media */
+      gst_structure_get_int (media_info, "type", &decproxy->type);
+
+      /* post media-info */
       message =
           gst_message_new_custom (GST_MESSAGE_APPLICATION,
           GST_OBJECT (decproxy), media_info);
+      gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
+
       GST_INFO_OBJECT (decproxy, "posted media-info message: %" GST_PTR_FORMAT,
           media_info);
-
-      gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
-      gst_structure_get_int (media_info, "type", &decproxy->type);
 
       GST_DECPROXY_UNLOCK (decproxy);
 
@@ -249,18 +252,20 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       caps = gst_pad_get_current_caps (pad);
       mime_type = gst_structure_get_name (gst_caps_get_structure (caps, 0));
 
-      /* post media-info */
       stream_id = gst_pad_get_stream_id (pad);
       media_info = gst_cool_taglist_to_info (tags, stream_id, mime_type);
+
+      /* store type of media */
+      gst_structure_get_int (media_info, "type", &decproxy->type);
+
+      /* post media-info */
       message =
           gst_message_new_custom (GST_MESSAGE_APPLICATION,
           GST_OBJECT (decproxy), media_info);
+      gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
 
       GST_INFO_OBJECT (decproxy, "posted media-info message: %" GST_PTR_FORMAT,
           media_info);
-
-      gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
-      gst_structure_get_int (media_info, "type", &decproxy->type);
 
       GST_DECPROXY_UNLOCK (decproxy);
 
