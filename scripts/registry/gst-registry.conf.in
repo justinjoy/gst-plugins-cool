@@ -1,0 +1,37 @@
+# @@@LICENSE
+#
+# Copyright (c) 2014 LG Electronics, Inc.
+#
+# Confidential computer software. Valid license from LG required for
+# possession, use or copying. Consistent with FAR 12.211 and 12.212,
+# Commercial Computer Software, Computer Software Documentation, and
+# Technical Data for Commercial Items are licensed to the U.S. Government
+# under vendor's standard commercial license.
+#
+# LICENSE@@@
+
+description "Preparing Gstreamer Registry"
+
+start on init-boot-done
+
+script
+	eval $(nyx-cmd OSInfo query --format=shell webos_release webos_build_id)
+	GST_REGISTRY_STAMP="${GST_REGISTRY_1_0}.done.$webos_release-$webos_build_id"
+
+	logger -s "Checking gstreamer registry file: $GST_REGISTRY_1_0"
+	if [ ! -f ${GST_REGISTRY_1_0} ] || [ ! -f ${GST_REGISTRY_STAMP} ] ; then
+		logger -s "Building gstreamer registry file"
+		GST_REGISTRY_UPDATE=yes @bindir@/gst-inspect-1.0 > @TMPDIR@/gst-inspect.log
+		chmod 666 ${GST_REGISTRY_1_0}
+		chown :compositor ${GST_REGISTRY_1_0}
+	fi
+
+        logger -s "Checking webos version for gstreamer registry"
+	if [ ! -f ${GST_REGISTRY_STAMP} ] ; then
+		logger -s "Removing gstreamer registry flag file"
+		rm -f ${GST_REGISTRY_1_0}.done.*
+		touch ${GST_REGISTRY_STAMP}
+	fi
+	logger -s "Finish checking gstreamer registry"
+
+end script

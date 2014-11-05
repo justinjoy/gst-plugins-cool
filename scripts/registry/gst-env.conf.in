@@ -1,0 +1,33 @@
+# @@@LICENSE
+#
+# Copyright (c) 2014 LG Electronics, Inc.
+#
+# Confidential computer software. Valid license from LG required for
+# possession, use or copying. Consistent with FAR 12.211 and 12.212,
+# Commercial Computer Software, Computer Software Documentation, and
+# Technical Data for Commercial Items are licensed to the U.S. Government
+# under vendor's standard commercial license.
+#
+# LICENSE@@@
+
+description "Preparing Gstreamer Environment Variables"
+
+start on startup
+
+script
+	# GST
+	GST="GIO_EXTRA_MODULES=@libdir@/gio/modules \
+		GST_PLUGIN_PATH=@libdir@/gstreamer-0.10 \
+		GST_PLUGIN_PATH_1_0=@libdir@/gstreamer-1.0:/mnt/lg/res/lglib/gstreamer-1.0 \
+		GST_PLUGIN_SCANNER=@bindir@/gst-plugin-scanner \
+		GST_PLUGIN_SCANNER_1_0=/usr/libexec/gstreamer-1.0/gst-plugin-scanner \
+		GST_REGISTRY=/mnt/flash/data/gst_registry.arm.bin \
+		GST_REGISTRY_1_0=/mnt/flash/data/gst_1_0_registry.arm.bin \
+		GST_REGISTRY_UPDATE=no"
+
+	# OMX
+	OMX="COMPONENTS_PATH=/mnt/lg/res/lglib/openmax"
+
+	initctl set-env --global $GST $OMX
+
+end script
