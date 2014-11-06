@@ -227,9 +227,6 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
           GST_OBJECT (decproxy), media_info);
       gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
 
-      GST_INFO_OBJECT (decproxy, "posted media-info message: %" GST_PTR_FORMAT,
-          media_info);
-
       GST_DECPROXY_UNLOCK (decproxy);
 
       g_free (stream_id);
@@ -263,9 +260,6 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
           gst_message_new_custom (GST_MESSAGE_APPLICATION,
           GST_OBJECT (decproxy), media_info);
       gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
-
-      GST_INFO_OBJECT (decproxy, "posted media-info message: %" GST_PTR_FORMAT,
-          media_info);
 
       GST_DECPROXY_UNLOCK (decproxy);
 
