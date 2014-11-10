@@ -166,6 +166,9 @@ gst_fakeadec_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 
   fakeadec = GST_FAKEADEC (parent);
 
+  buffer = gst_buffer_make_writable (buffer);
+  GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_CORRUPTED);
+
   ret = gst_pad_push (fakeadec->srcpad, buffer);
 
   return ret;

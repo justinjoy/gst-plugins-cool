@@ -139,6 +139,9 @@ gst_fakevdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 
   fakevdec = GST_FAKEVDEC (parent);
 
+  buffer = gst_buffer_make_writable (buffer);
+  GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_CORRUPTED);
+
   ret = gst_pad_push (fakevdec->srcpad, buffer);
 
   return ret;
