@@ -252,6 +252,13 @@ pad_added_cb (GstElement * element, GstPad * pad, GstTextBin * bin)
   /* generate multiqueue */
   if (!bin->mq) {
     bin->mq = gst_element_factory_make ("multiqueue", NULL);
+    /* No limits */
+    g_object_set (bin->mq,
+        "max-size-bytes", (guint) 0,
+        "max-size-buffers", (guint) 0,
+        "max-size-time", (guint64) 0,
+        "extra-size-bytes", (guint) 0,
+        "extra-size-buffers", (guint) 0, "extra-size-time", (guint64) 0, NULL);
     gst_element_set_state (bin->mq, GST_STATE_PAUSED);
     gst_bin_add (GST_BIN (bin), bin->mq);
     GST_DEBUG_OBJECT (bin->mq, "generated multiqueue");
