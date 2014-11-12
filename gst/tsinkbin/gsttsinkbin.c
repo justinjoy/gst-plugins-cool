@@ -59,6 +59,8 @@ static gboolean activate_chain (GstElement * sink, GstTextGroup * tgoup,
     gboolean activate);
 static GstFlowReturn gst_tsink_bin_new_sample (GstElement * sink);
 static gboolean gst_tsink_bin_query (GstElement * element, GstQuery * query);
+static GstPadProbeReturn gst_tsink_appsink_event_probe_cb (GstPad * pad,
+    GstPadProbeInfo * info, gpointer user_data);
 
 G_DEFINE_TYPE (GstTSinkBin, gst_tsink_bin, GST_TYPE_BIN);
 
@@ -124,6 +126,7 @@ gst_tsink_bin_request_new_pad (GstElement * element, GstPadTemplate * templ,
   GstPad *pad;
   GstTextGroup *t_group;
   GstPad *queue_sinkpad;
+  GstPad *appsinkpad = NULL;
 
   g_return_val_if_fail (templ != NULL, NULL);
   GST_DEBUG_OBJECT (element, "name: %s", name);
@@ -147,16 +150,26 @@ gst_tsink_bin_request_new_pad (GstElement * element, GstPadTemplate * templ,
   // FIXME: Needs to mutex lock when properties are set in appsink.
   // If not, it may cause crash problem in h15 platform.
   // issue address : [BHV-15451] Crash problem when playing internal subtitle
+
   GST_TSINK_BIN_LOCK (tsinkbin);
   g_object_set (t_group->appsink, "emit-signals", TRUE, "sync", FALSE,
       "ts-offset", 1000 * 1000, NULL);
+  /* disable async enable */
+  g_object_set (t_group->appsink, "async", FALSE, NULL);
   GST_TSINK_BIN_UNLOCK (tsinkbin);
 
   g_signal_connect (t_group->appsink, "new-sample",
       G_CALLBACK (gst_tsink_bin_new_sample), NULL);
 
-  /* disable async enable */
-  g_object_set (t_group->appsink, "async", FALSE, NULL);
+  /* get the appsink sink pad */
+  appsinkpad = gst_element_get_static_pad (t_group->appsink, "sink");
+
+  /* add the probe function to receive the downstream events */
+  gst_pad_add_probe (appsinkpad,
+      GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
+      gst_tsink_appsink_event_probe_cb, t_group->appsink, NULL);
+
+  gst_object_unref (appsinkpad);
 
   gst_element_set_state (t_group->appsink, GST_STATE_READY);
 
@@ -280,4 +293,52 @@ gst_tsink_bin_query (GstElement * element, GstQuery * query)
   ret = GST_ELEMENT_CLASS (parent_class)->query (element, query);
 
   return ret;
+}
+
+/* Process the appsink downstream events */
+static GstPadProbeReturn
+gst_tsink_appsink_event_probe_cb (GstPad * pad, GstPadProbeInfo * info,
+    gpointer user_data)
+{
+  GstElement *self = GST_ELEMENT (user_data);
+  GstEvent *event = GST_EVENT (GST_PAD_PROBE_INFO_DATA (info));
+  GstStructure *tmp_structure;
+  const gchar *type_name;
+  GstCaps *caps = NULL;
+
+  GST_DEBUG_OBJECT (self, "event = %s, sticky = %d",
+      GST_EVENT_TYPE_NAME (event), GST_EVENT_IS_STICKY (event));
+
+  if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) != GST_EVENT_CAPS) {
+    GST_DEBUG_OBJECT (pad, "Passing stream start event");
+    return GST_PAD_PROBE_OK;
+  }
+
+  gst_event_parse_caps (event, &caps);
+  gst_event_unref (event);
+
+  /* Get the first gst structure from the caps */
+  g_return_val_if_fail (caps != NULL, GST_PAD_PROBE_OK);
+  tmp_structure = gst_caps_get_structure (caps, 0);
+
+  g_return_val_if_fail (tmp_structure != NULL, GST_PAD_PROBE_OK);
+  type_name = gst_structure_get_name (tmp_structure);
+
+  /* check the mime type */
+  if (!g_strcmp0 (type_name, "application/x-teletext")) {
+    GST_DEBUG_OBJECT (self, "Teletext - app sink configured as Sync %p %p",
+        self, pad);
+
+    g_object_set (self, "sync", TRUE, NULL);
+    /* enable async enable */
+    g_object_set (self, "async", TRUE, NULL);
+  } else {
+    GST_DEBUG_OBJECT (self, "Subtitle - app sink configured as ASync %p %p",
+        self, pad);
+  }
+
+  /* remove the probe function from appsink sink pad */
+  gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
+
+  return GST_PAD_PROBE_REMOVE;
 }
