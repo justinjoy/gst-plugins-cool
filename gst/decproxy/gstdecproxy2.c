@@ -509,8 +509,15 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
   gst_bin_remove (GST_BIN (user_data), decoder);
 
   if (!(decoder = find_and_create_decoder (decproxy))) {
-    GST_ERROR_OBJECT (decproxy, "Failed to find proper decoder");
-    return GST_PAD_PROBE_REMOVE;
+    GST_INFO_OBJECT (decproxy, "Failed to find proper decoder");
+    if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO) {
+      decoder = gst_element_factory_make ("fakeadec", NULL);
+      g_object_set (decoder, "active-mode", TRUE, NULL);
+      GST_ELEMENT_WARNING (GST_ELEMENT_CAST (decproxy), STREAM, CODEC_NOT_FOUND,
+          ("This audio is not supported by decoder"),
+          ("This audio is not supported by decoder"));
+    } else
+      return GST_PAD_PROBE_REMOVE;
   }
 
   gst_bin_add (GST_BIN_CAST (decproxy), decoder);

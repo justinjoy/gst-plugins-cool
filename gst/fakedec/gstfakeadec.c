@@ -1,8 +1,9 @@
 /* GStreamer Plugins Cool
  * Copyright (C) 2013-2014 LG Electronics, Inc.
- *	Author : Wonchul Lee <wonchul86.lee@lge.com>
- *	         Jeongseok Kim <jeongseok.kim@lge.com>
+ *    Author : Wonchul Lee <wonchul86.lee@lge.com>
+ *           Jeongseok Kim <jeongseok.kim@lge.com>
  *           HoonHee Lee <hoonhee.lee@lge.com>
+ *           Myoungsun Lee <mysunny.lee@lge.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -41,13 +42,21 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS ("audio/x-raw")
     );
 
+enum
+{
+  PROP_0,
+  PROP_ACTIVE_MODE,
+  PROP_LAST
+};
+
 GST_DEBUG_CATEGORY_STATIC (fakeadec_debug);
 #define GST_CAT_DEFAULT fakeadec_debug
 
 static gboolean gst_fakeadec_set_caps (GstFakeAdec * fakeadec, GstCaps * caps);
 static gboolean gst_fakeadec_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
-
+static void gst_fakeadec_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec);
 static GstFlowReturn gst_fakeadec_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buffer);
 
@@ -102,6 +111,9 @@ static void
 gst_fakeadec_class_init (GstFakeAdecClass * klass)
 {
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+
+  gobject_class->set_property = gst_fakeadec_set_property;
 
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&gst_fakeadec_src_pad_template));
@@ -112,6 +124,11 @@ gst_fakeadec_class_init (GstFakeAdecClass * klass)
       "Codec/Decoder/Audio",
       "Pass data to backend decoder",
       "Wonchul Lee <wonchul86.lee@lge.com>, Jeongseok Kim <jeongseok.kim@lge.com>");
+
+  g_object_class_install_property (gobject_class, PROP_ACTIVE_MODE,
+      g_param_spec_boolean ("active-mode", "Active mode",
+          "Set active mode to fakeadec",
+          FALSE, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 
   GST_DEBUG_CATEGORY_INIT (fakeadec_debug, "fakeadec", 0, "Fake audio decoder");
 }
@@ -131,6 +148,9 @@ gst_fakeadec_init (GstFakeAdec * fakeadec)
   fakeadec->srcpad =
       gst_pad_new_from_static_template (&gst_fakeadec_src_pad_template, "src");
   gst_element_add_pad (GST_ELEMENT (fakeadec), fakeadec->srcpad);
+
+  fakeadec->active_mode = FALSE;        /* whether the fakeadec is activated pad or not */
+  fakeadec->need_gap = FALSE;   /* whether the fakeadec needs to send a gap event or not */
 }
 
 static gboolean
@@ -151,8 +171,16 @@ gst_fakeadec_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       }
       gst_event_unref (event);
       res = TRUE;
-    }
       break;
+    }
+    case GST_EVENT_SEGMENT:
+    {
+      GST_LOG_OBJECT (fakeadec, "Save segment event");
+      gst_event_copy_segment (event, &fakeadec->segment);
+      res = gst_pad_event_default (pad, parent, event);
+      fakeadec->need_gap = TRUE;
+      break;
+    }
     default:
       res = gst_pad_event_default (pad, parent, event);
       break;
@@ -161,20 +189,50 @@ gst_fakeadec_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
   return res;
 }
 
+static void
+gst_fakeadec_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec)
+{
+  GstFakeAdec *fakeadec = GST_FAKEADEC (object);
+
+  switch (prop_id) {
+    case PROP_ACTIVE_MODE:
+      GST_DEBUG_OBJECT (fakeadec, "Set active mode");
+      fakeadec->active_mode = g_value_get_boolean (value);
+      fakeadec->need_gap = TRUE;
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
 
 static GstFlowReturn
 gst_fakeadec_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 {
   GstFakeAdec *fakeadec;
-  GstFlowReturn ret;
+  GstFlowReturn ret = GST_FLOW_OK;
 
   fakeadec = GST_FAKEADEC (parent);
 
-  buffer = gst_buffer_make_writable (buffer);
-  GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_CORRUPTED);
-
-  ret = gst_pad_push (fakeadec->srcpad, buffer);
+  if (fakeadec->active_mode) {
+    if (fakeadec->need_gap) {
+      GstEvent *gap =
+          gst_event_new_gap (fakeadec->segment.start, fakeadec->segment.stop);
+      GST_DEBUG_OBJECT (fakeadec,
+          "push gap event with time :%" GST_TIME_FORMAT " duration: %"
+          GST_TIME_FORMAT, GST_TIME_ARGS (fakeadec->segment.start),
+          GST_TIME_ARGS (fakeadec->segment.stop));
+      if (gst_pad_push_event (fakeadec->srcpad, gap))
+        fakeadec->need_gap = FALSE;
+    }
+    gst_buffer_unref (buffer);
+  } else {
+    buffer = gst_buffer_make_writable (buffer);
+    GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_CORRUPTED);
+    GST_DEBUG_OBJECT (fakeadec, "Send packet");
+    ret = gst_pad_push (fakeadec->srcpad, buffer);
+  }
 
   return ret;
-
 }

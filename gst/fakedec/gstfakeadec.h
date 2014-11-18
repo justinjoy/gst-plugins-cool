@@ -42,6 +42,10 @@ typedef struct _GstFakeAdecClass GstFakeAdecClass;
 struct _GstFakeAdec
 {
   GstElement element;
+  GstSegment segment;
+
+  gboolean active_mode;
+  gboolean need_gap;
 
   GstPad *sinkpad, *srcpad;
 };
