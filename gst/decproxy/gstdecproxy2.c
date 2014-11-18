@@ -289,12 +289,20 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       const GstStructure *s;
       gboolean active = FALSE;
+      GstPad *front_sinkpad = NULL;
+      gulong probe_front = 0;
 
       if (!gst_event_has_name (event, "acquired-resource")) {
         GST_DEBUG_OBJECT (event, "Unknown custom event");
         ret = gst_pad_event_default (pad, parent, event);
         break;
       }
+      /* FIXME : To prevent event loss on front element */
+      GST_DEBUG_OBJECT (front_sinkpad, "Add pad block");
+      front_sinkpad = gst_element_get_static_pad (decproxy->front, "sink");
+      probe_front =
+          gst_pad_add_probe (front_sinkpad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
+          NULL, NULL, NULL);
 
       if (decproxy->blocked_id) {
         GstPad *front_srcpad;
@@ -331,6 +339,11 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
       }
 
       GST_DECPROXY_UNLOCK (decproxy);
+
+      /* FIXME : To prevent event loss on front element */
+      GST_DEBUG_OBJECT (front_sinkpad, "Remove pad block");
+      gst_pad_remove_probe (front_sinkpad, probe_front);
+      gst_object_unref (front_sinkpad);
     }
     default:
       ret = gst_pad_event_default (pad, parent, event);
