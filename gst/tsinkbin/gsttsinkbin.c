@@ -326,15 +326,9 @@ gst_tsink_appsink_event_probe_cb (GstPad * pad, GstPadProbeInfo * info,
 
   /* check the mime type */
   if (!g_strcmp0 (type_name, "application/x-teletext")) {
-    GST_DEBUG_OBJECT (self, "Teletext - app sink configured as Sync %p %p",
-        self, pad);
+    GST_DEBUG_OBJECT (pad, "Teletext - app sink configured as Sync %p", self);
 
-    g_object_set (self, "sync", TRUE, NULL);
-    /* enable async enable */
-    g_object_set (self, "async", TRUE, NULL);
-  } else {
-    GST_DEBUG_OBJECT (self, "Subtitle - app sink configured as ASync %p %p",
-        self, pad);
+    g_object_set (self, "sync", TRUE, "async", TRUE, NULL);
   }
 
   /* remove the probe function from appsink sink pad */
