@@ -86,6 +86,10 @@ gst_fakeadec_set_caps (GstFakeAdec * fakeadec, GstCaps * caps)
   gst_caps_set_simple (output_caps, "rate", G_TYPE_INT, rate, NULL);
   /* set channels */
   gst_structure_get_int (s, "channels", &channels);
+  /* FIXME: omxaudiosink can handle less than two channels */
+  if (channels > 2)
+    channels = 2;
+
   gst_caps_set_simple (output_caps, "channels", G_TYPE_INT, channels, NULL);
 
   ret = gst_pad_set_caps (fakeadec->srcpad, output_caps);
