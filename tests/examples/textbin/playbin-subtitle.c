@@ -161,6 +161,8 @@ element_added_cb (GstElement * playbin, GstElement * element, gpointer u_data)
     g_signal_connect (element, "no-more-pads", G_CALLBACK (cb_no_more_pads),
         NULL);
   }
+
+  g_free (elem_name);
 }
 
 gint
