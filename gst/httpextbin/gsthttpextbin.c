@@ -155,6 +155,7 @@ gst_http_ext_bin_set_property (GObject * object, guint prop_id,
       iface = GST_URI_HANDLER_GET_INTERFACE (handler);
       iface->set_uri (handler, g_value_get_string (value), NULL);
       GST_OBJECT_UNLOCK (bin);
+      break;
     }
     case PROP_SMART_PROPERTIES:
     {
