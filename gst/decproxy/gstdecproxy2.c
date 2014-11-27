@@ -655,28 +655,6 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
   else if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO)
     gst_pad_set_caps (target_pad, gst_caps_from_string ("audio/x-media"));
 
-  // FIXME: send caps event with raw mime-type to downstream to configure audio/video sink chain
-  if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) == GST_EVENT_CAPS) {
-    if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO) {
-      gint rate = 44100;
-      gint channels = 1;
-
-      caps = gst_caps_new_empty_simple ("audio/x-raw");
-      gst_structure_get_int (s, "rate", &rate);
-      gst_structure_get_int (s, "channels", &channels);
-
-      gst_caps_set_simple (caps, "format", G_TYPE_STRING, "S32LE",
-          "layout", G_TYPE_STRING, "interleaved", "rate", G_TYPE_INT, rate,
-          "channels", G_TYPE_INT, channels, NULL);
-
-      GST_DEBUG_OBJECT (pad, "try to send caps event %" GST_PTR_FORMAT, caps);
-      gst_pad_push_event (target_pad, gst_event_new_caps (caps));
-    } else if (decproxy->type == GST_COOL_STREAM_TYPE_VIDEO) {
-      caps = gst_caps_new_empty_simple ("video/x-raw");
-      GST_DEBUG_OBJECT (pad, "try to send caps event %" GST_PTR_FORMAT, caps);
-      gst_pad_push_event (target_pad, gst_event_new_caps (caps));
-    }
-  }
   gst_object_unref (target_pad);
 
   return GST_PAD_PROBE_OK;
