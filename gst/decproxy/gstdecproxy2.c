@@ -29,6 +29,7 @@
 
 GST_DEBUG_CATEGORY_STATIC (decproxy_debug);
 #define GST_CAT_DEFAULT decproxy_debug
+#define ABS(x)    ((x) < 0 ? -(x) : (x))
 
 static GstStaticPadTemplate decproxy_sink_template =
     GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK,
@@ -265,6 +266,18 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       gst_caps_unref (caps);
       g_free (stream_id);
+      ret = gst_pad_event_default (pad, parent, event);
+      break;
+    }
+    case GST_EVENT_SEGMENT:
+    {
+      GstSegment segment;
+      gst_event_copy_segment (event, &segment);
+      if (ABS (segment.rate - 1.0) > 1.0) {
+        g_object_set (decproxy->puppet, "active-mode", TRUE, NULL);
+        GST_DEBUG_OBJECT (decproxy, "Set active-mode for trick play");
+      } else
+        g_object_set (decproxy->puppet, "active-mode", FALSE, NULL);
       ret = gst_pad_event_default (pad, parent, event);
       break;
     }
