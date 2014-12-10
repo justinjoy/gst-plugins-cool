@@ -568,7 +568,6 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
     decoder = decproxy->puppet;
 
   target_pad = gst_element_get_static_pad (decoder, "src");
-  GST_PAD_STREAM_LOCK (target_pad);
   GST_DEBUG_OBJECT (target_pad, "Registered pad block to remove decoder");
 
   gst_pad_add_probe (target_pad,
@@ -580,7 +579,6 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
   gst_pad_send_event (target_pad, gst_event_new_eos ());
   GST_DEBUG_OBJECT (target_pad, "Sent EOS to remove decoder element");
   gst_object_unref (target_pad);
-  GST_PAD_STREAM_UNLOCK (target_pad);
 
   return GST_PAD_PROBE_OK;
 }
