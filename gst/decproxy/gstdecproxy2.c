@@ -272,13 +272,15 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
     }
     case GST_EVENT_SEGMENT:
     {
-      GstSegment segment;
-      gst_event_copy_segment (event, &segment);
-      if (ABS (segment.rate - 1.0) > 1.0) {
-        g_object_set (decproxy->puppet, "active-mode", TRUE, NULL);
-        GST_DEBUG_OBJECT (decproxy, "Set active-mode for trick play");
-      } else
-        g_object_set (decproxy->puppet, "active-mode", FALSE, NULL);
+      if (decproxy->puppet) {
+        GstSegment segment;
+        gst_event_copy_segment (event, &segment);
+        if (ABS (segment.rate - 1.0) > 1.0) {
+          g_object_set (decproxy->puppet, "active-mode", TRUE, NULL);
+          GST_DEBUG_OBJECT (decproxy, "Set active-mode for trick play");
+        } else
+          g_object_set (decproxy->puppet, "active-mode", FALSE, NULL);
+      }
       ret = gst_pad_event_default (pad, parent, event);
       break;
     }
@@ -545,6 +547,10 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
   GST_DEBUG_OBJECT (decproxy, "removing %" GST_PTR_FORMAT, decoder);
   gst_element_set_state (decoder, GST_STATE_NULL);
   gst_bin_remove (GST_BIN (user_data), decoder);
+  if (decproxy->state == GST_DECPROXY_STATE_PUPPET)
+    decproxy->decoder = NULL;
+  else
+    decproxy->puppet = NULL;
 
   if (!(decoder = find_and_create_decoder (decproxy))) {
     GST_INFO_OBJECT (decproxy, "Failed to find proper decoder");
