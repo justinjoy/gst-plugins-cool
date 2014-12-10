@@ -119,6 +119,8 @@ struct _GstDecProxy
 
   GstCoolStreamType type;
   gulong blocked_id;
+
+  gboolean pending_switch_decoder;
 };
 
 struct _GstDecProxyClass
