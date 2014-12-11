@@ -325,8 +325,10 @@ gst_tsink_appsink_event_probe_cb (GstPad * pad, GstPadProbeInfo * info,
   type_name = gst_structure_get_name (tmp_structure);
 
   /* check the mime type */
-  if (!g_strcmp0 (type_name, "application/x-teletext")) {
-    GST_DEBUG_OBJECT (pad, "Teletext - app sink configured as Sync %p", self);
+  if (!g_strcmp0 (type_name, "application/x-teletext") ||
+      !g_strcmp0 (type_name, "subpicture/x-dvb")) {
+    GST_DEBUG_OBJECT (pad, "[%s]- app sink configured as Sync %p", type_name,
+        self);
 
     g_object_set (self, "sync", TRUE, "async", TRUE, NULL);
   }
