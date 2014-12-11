@@ -33,6 +33,12 @@ enum
   STREAM_LAST
 };
 
+/* blacklisted field for media-info, we don't need to add it to media-info message */
+static const gchar *blacklisted_tag_fields[] =
+    { GST_TAG_BITRATE, GST_TAG_MINIMUM_BITRATE, GST_TAG_MAXIMUM_BITRATE,
+  NULL
+};
+
 static gboolean
 append_media_field (GQuark field_id, const GValue * value, gpointer user_data)
 {
@@ -41,6 +47,7 @@ append_media_field (GQuark field_id, const GValue * value, gpointer user_data)
 
   GST_DEBUG_OBJECT (media, "field [%s:%s]", g_quark_to_string (field_id),
       value_str);
+
   gst_structure_id_set_value (media, field_id, value);
 
   g_free (value_str);
@@ -108,23 +115,42 @@ gst_cool_taglist_to_info (GstTagList * taglist, char *stream_id,
 
   const gchar *str_structure;
   GstStructure *s;
-  GstStructure *media_info;
+  GstStructure *media_info = NULL;
   GstCoolStreamType type = gst_cool_find_type (mime_type);
+  gint i = 0;
 
   GST_DEBUG ("getting taglist information: %" GST_PTR_FORMAT, taglist);
+
+  str_structure = gst_tag_list_to_string (taglist);
+  s = gst_structure_new_from_string (str_structure);
+
+  /* filtered out blacklisted fields */
+  for (i = 0; blacklisted_tag_fields[i]; i++) {
+    if (gst_structure_has_field (s, blacklisted_tag_fields[i])) {
+      GST_DEBUG ("got blacked field : %s", blacklisted_tag_fields[i]);
+      gst_structure_remove_field (s, blacklisted_tag_fields[i]);
+    }
+  }
+
+  /* whether to check structure has any fields or not */
+  if (gst_structure_n_fields (s) == 0) {
+    GST_DEBUG ("No tag fields");
+    media_info = NULL;
+    goto done;
+  }
 
   media_info =
       gst_structure_new ("media-info", "stream-id", G_TYPE_STRING,
       g_strdup (stream_id), "type", G_TYPE_INT, type, "mime-type",
       G_TYPE_STRING, g_strdup (mime_type), NULL);
 
-  str_structure = gst_tag_list_to_string (taglist);
-  s = gst_structure_new_from_string (str_structure);
-
   /* append media information from taglist's structure to media-info */
   gst_structure_foreach (s, append_media_field, media_info);
   GST_DEBUG ("Complete: structure information = [%" GST_PTR_FORMAT "]",
       media_info);
+
+done:
+  gst_structure_free (s);
 
   return media_info;
 }

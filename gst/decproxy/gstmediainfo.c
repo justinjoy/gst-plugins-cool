@@ -207,7 +207,9 @@ gst_media_info_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       /* post media-info */
       stream_id = gst_pad_get_stream_id (pad);
       media_info = gst_cool_taglist_to_info (tags, stream_id, mime_type);
-      posting_media_info_msg (info, media_info);
+      if (media_info)
+        posting_media_info_msg (info, media_info);
+
       g_free (stream_id);
 
       gst_event_unref (event);

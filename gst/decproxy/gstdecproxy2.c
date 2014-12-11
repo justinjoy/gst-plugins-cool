@@ -257,11 +257,13 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       /* store type of media */
       gst_structure_get_int (media_info, "type", &decproxy->type);
 
-      /* post media-info */
-      message =
-          gst_message_new_custom (GST_MESSAGE_APPLICATION,
-          GST_OBJECT (decproxy), media_info);
-      gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
+      if (media_info) {
+        /* post media-info */
+        message =
+            gst_message_new_custom (GST_MESSAGE_APPLICATION,
+            GST_OBJECT (decproxy), media_info);
+        gst_element_post_message (GST_ELEMENT_CAST (decproxy), message);
+      }
 
       GST_DECPROXY_UNLOCK (decproxy);
 
