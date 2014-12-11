@@ -274,12 +274,17 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       if (decproxy->puppet) {
         GstSegment segment;
+
+        GST_OBJECT_LOCK (decproxy);
+
         gst_event_copy_segment (event, &segment);
         if (ABS (segment.rate - 1.0) > 1.0) {
           g_object_set (decproxy->puppet, "active-mode", TRUE, NULL);
           GST_DEBUG_OBJECT (decproxy, "Set active-mode for trick play");
         } else
           g_object_set (decproxy->puppet, "active-mode", FALSE, NULL);
+
+        GST_OBJECT_UNLOCK (decproxy);
       }
       ret = gst_pad_event_default (pad, parent, event);
       break;
