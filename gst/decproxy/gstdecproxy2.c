@@ -545,7 +545,7 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
   if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_DATA (info)) != GST_EVENT_EOS)
     return GST_PAD_PROBE_PASS;
 
-  GST_DEBUG_OBJECT (pad, "blocked");
+  GST_DEBUG_OBJECT (decproxy, "pad(%s:%s) blocked", GST_DEBUG_PAD_NAME (pad));
 
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
 
@@ -599,7 +599,7 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
   GstElement *decoder;
   GstDecProxy *decproxy = GST_DECPROXY (user_data);
 
-  GST_DEBUG_OBJECT (pad, "blocked");
+  GST_DEBUG_OBJECT (decproxy, "pad(%s:%s) blocked", GST_DEBUG_PAD_NAME (pad));
 
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
 
@@ -609,7 +609,8 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
     decoder = decproxy->puppet;
 
   target_pad = gst_element_get_static_pad (decoder, "src");
-  GST_DEBUG_OBJECT (target_pad, "Registered pad block to remove decoder");
+  GST_DEBUG_OBJECT (decproxy, "Registered pad(%s:%s) block to remove decoder",
+      GST_DEBUG_PAD_NAME (target_pad));
 
   gst_pad_add_probe (target_pad,
       GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
@@ -617,8 +618,12 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
   gst_object_unref (target_pad);
 
   target_pad = gst_element_get_static_pad (decoder, "sink");
+
+  GST_DEBUG_OBJECT (decproxy,
+      "Sent EOS to pad(%s:%s) for removing decoder element",
+      GST_DEBUG_PAD_NAME (target_pad));
+
   gst_pad_send_event (target_pad, gst_event_new_eos ());
-  GST_DEBUG_OBJECT (target_pad, "Sent EOS to remove decoder element");
   gst_object_unref (target_pad);
 
   return GST_PAD_PROBE_OK;
@@ -629,20 +634,20 @@ replace_decoder (GstDecProxy * decproxy, gboolean active)
 {
   GstPad *pad;
 
-  pad = gst_element_get_static_pad (decproxy->front, "src");
-
-  GST_DEBUG_OBJECT (pad, "Blocking pad to remove decoder element: state = %d",
-      active);
-
-  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
-      replace_decoder_stage1_cb, decproxy, NULL);
-
-  gst_object_unref (pad);
-
   if (active)
     decproxy->state = GST_DECPROXY_STATE_DECODER;
   else
     decproxy->state = GST_DECPROXY_STATE_PUPPET;
+
+  pad = gst_element_get_static_pad (decproxy->front, "src");
+
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
+      replace_decoder_stage1_cb, decproxy, NULL);
+
+  GST_DEBUG_OBJECT (decproxy, "Blocking front identity srcpad, state = %d",
+      active);
+
+  gst_object_unref (pad);
 }
 
 static GstPadProbeReturn
