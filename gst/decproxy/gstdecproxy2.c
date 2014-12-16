@@ -51,10 +51,10 @@ static gboolean gst_decproxy_sink_event (GstPad * pad, GstObject * parent,
 static gboolean gst_decproxy_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 
-static void replace_decoder (GstDecProxy * decproxy, gboolean active);
-
 static GstPadProbeReturn analyze_new_caps (GstPad * pad, GstPadProbeInfo * info,
     gpointer user_data);
+static GstPadProbeReturn replace_decoder_stage1_cb (GstPad * pad,
+    GstPadProbeInfo * info, gpointer user_data);
 
 static void
 gst_decproxy_class_init (GstDecProxyClass * klass)
@@ -93,7 +93,9 @@ gst_decproxy_init (GstDecProxy * decproxy)
 
   decproxy->decoder = NULL;
   decproxy->puppet = NULL;
-  decproxy->state = GST_DECPROXY_STATE_UNKNOWN;
+  decproxy->current_state = GST_DECPROXY_STATE_UNKNOWN;
+  decproxy->next_state = GST_DECPROXY_STATE_UNKNOWN;
+  decproxy->pending_state = GST_DECPROXY_STATE_UNKNOWN;
   decproxy->pending_switch_decoder = FALSE;
 
   decproxy->front = gst_element_factory_make ("identity", NULL);
@@ -159,7 +161,7 @@ gst_decproxy_dispose (GObject * object)
     decproxy->back = NULL;
   }
 
-  if (decproxy->state == GST_DECPROXY_STATE_PUPPET) {
+  if (decproxy->current_state == GST_DECPROXY_STATE_PUPPET) {
     if (decproxy->puppet != NULL) {
       GST_DEBUG_OBJECT (decproxy->back, "Trying to remove puppet");
       gst_element_set_state (decproxy->puppet, GST_STATE_NULL);
@@ -303,10 +305,43 @@ gst_decproxy_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 }
 
 static void
-gst_decproxy_switch_decoder (GstDecProxy * decproxy, gboolean active)
+gst_decproxy_switch_decoder (GstDecProxy * decproxy, GstDecProxyState state)
 {
   GstPad *front_sinkpad = NULL;
+  GstPad *front_srcpad = NULL;
   gulong probe_front = 0;
+
+  /* This is first arrived acquired-resource event, unblock pad! */
+  if (decproxy->blocked_id) {
+    GstPad *front_srcpad = gst_element_get_static_pad (decproxy->front, "src");
+
+    GST_DEBUG_OBJECT (decproxy,
+        "first acquired-resource event arrival, unblock pad(%s:%s)",
+        GST_DEBUG_PAD_NAME (front_srcpad));
+
+    gst_pad_remove_probe (front_srcpad, decproxy->blocked_id);
+    decproxy->blocked_id = 0;
+
+    gst_object_unref (front_srcpad);
+  }
+
+  /* decproxy is now on changing state, pending it */
+  if (decproxy->current_state != decproxy->next_state) {
+    GST_INFO_OBJECT (decproxy, "pending to change state to (%s)",
+        ((state == GST_DECPROXY_STATE_PUPPET) ? "PUPPET" : "DECODER"));
+    decproxy->pending_state = state;
+    return;
+  }
+
+  /* skip to change equal state */
+  if (decproxy->current_state == decproxy->next_state &&
+      state == decproxy->next_state) {
+    GST_INFO_OBJECT (decproxy, "skip to change equal state of decproxy. (%s)",
+        ((state == GST_DECPROXY_STATE_PUPPET) ? "PUPPET" : "DECODER"));
+    return;
+  }
+
+  decproxy->next_state = state;
 
   /* FIXME : To prevent event loss on front element */
   front_sinkpad = gst_element_get_static_pad (decproxy->front, "sink");
@@ -316,32 +351,21 @@ gst_decproxy_switch_decoder (GstDecProxy * decproxy, gboolean active)
 
   GST_DEBUG_OBJECT (front_sinkpad, "Add pad block");
 
-  if (decproxy->blocked_id) {
-    GstPad *front_srcpad;
 
-    front_srcpad = gst_element_get_static_pad (decproxy->front, "src");
-    GST_DEBUG_OBJECT (front_srcpad, "Remove pad block");
+  front_srcpad = gst_element_get_static_pad (decproxy->front, "src");
 
-    gst_pad_remove_probe (front_srcpad, decproxy->blocked_id);
-    decproxy->blocked_id = 0;
-    gst_object_unref (front_srcpad);
-  }
+  GST_DEBUG_OBJECT (decproxy,
+      "Blocking pad for replacing decoder, creating (%s)",
+      ((state == GST_DECPROXY_STATE_PUPPET) ? "PUPPET" : "DECODER"));
 
-  GST_DECPROXY_LOCK (decproxy);
-
-  if (active && decproxy->state == GST_DECPROXY_STATE_PUPPET) {
-    GST_DEBUG_OBJECT (decproxy, "Trying to remove puppet");
-    replace_decoder (decproxy, active);
-  } else if (!active && decproxy->state == GST_DECPROXY_STATE_DECODER) {
-    GST_DEBUG_OBJECT (decproxy, "Trying to remove decoder");
-    replace_decoder (decproxy, active);
-  }
-
-  GST_DECPROXY_UNLOCK (decproxy);
+  gst_pad_add_probe (front_srcpad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
+      replace_decoder_stage1_cb, decproxy, NULL);
 
   /* FIXME : To prevent event loss on front element */
   GST_DEBUG_OBJECT (front_sinkpad, "Remove pad block");
   gst_pad_remove_probe (front_sinkpad, probe_front);
+
+  gst_object_unref (front_srcpad);
   gst_object_unref (front_sinkpad);
 }
 
@@ -358,6 +382,7 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       const GstStructure *s;
       gboolean active = FALSE;
+      GstDecProxyState state;
 
       if (!gst_event_has_name (event, "acquired-resource")) {
         GST_DEBUG_OBJECT (event, "Unknown custom event");
@@ -369,12 +394,11 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
       gst_structure_get_boolean (s, "active", &active);
 
       /* store resource info for set on decoder */
-      if (!decproxy->resource_info) {
+      if (!decproxy->resource_info)
         decproxy->resource_info = gst_structure_copy (s);
-      } else if (decproxy->resource_info) {
+      else
         gst_structure_set (decproxy->resource_info, "active", G_TYPE_BOOLEAN,
             active, NULL);
-      }
 
       GST_INFO_OBJECT (decproxy, "got resource-info : %" GST_PTR_FORMAT,
           decproxy->resource_info);
@@ -382,7 +406,7 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GST_DECPROXY_LOCK (decproxy);
 
       /* pending to create fake decoder before doing analyze_new_caps */
-      if (decproxy->state == GST_DECPROXY_STATE_UNKNOWN) {
+      if (decproxy->current_state == GST_DECPROXY_STATE_UNKNOWN) {
         decproxy->pending_switch_decoder = TRUE;
         GST_DECPROXY_UNLOCK (decproxy);
 
@@ -392,7 +416,8 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       GST_DECPROXY_UNLOCK (decproxy);
 
-      gst_decproxy_switch_decoder (decproxy, active);
+      state = active ? GST_DECPROXY_STATE_DECODER : GST_DECPROXY_STATE_PUPPET;
+      gst_decproxy_switch_decoder (decproxy, state);
 
       /* some of audio decoder should receive acqurired-resource event for
        * switching audio track.
@@ -483,15 +508,16 @@ find_and_create_decoder (GstDecProxy * decproxy)
   GstElement *decoder = NULL;
   GstElementFactory *factory;
 
-  if (decproxy->state == GST_DECPROXY_STATE_PUPPET) {
+  if (decproxy->next_state == GST_DECPROXY_STATE_PUPPET) {
+    gchar *elem_name = NULL;
 
-    if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO) {
-      GST_DEBUG_OBJECT (decproxy, "Fake decoder for audio will be deployed");
-      decoder = gst_element_factory_make ("fakeadec", NULL);
-    } else if (decproxy->type == GST_COOL_STREAM_TYPE_VIDEO) {
-      GST_DEBUG_OBJECT (decproxy, "Fake decoder for video will be deployed");
-      decoder = gst_element_factory_make ("fakevdec", NULL);
-    }
+    if (decproxy->type == GST_COOL_STREAM_TYPE_AUDIO)
+      elem_name = "fakeadec";
+    else if (decproxy->type == GST_COOL_STREAM_TYPE_VIDEO)
+      elem_name = "fakevdec";
+
+    GST_DEBUG_OBJECT (decproxy, "%s will be deployed", elem_name);
+    decoder = gst_element_factory_make (elem_name, NULL);
 
     return decoder;
   }
@@ -554,7 +580,7 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
 
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
 
-  if (decproxy->state == GST_DECPROXY_STATE_PUPPET)
+  if (decproxy->next_state == GST_DECPROXY_STATE_PUPPET)
     decoder = decproxy->decoder;
   else
     decoder = decproxy->puppet;
@@ -562,7 +588,7 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
   GST_DEBUG_OBJECT (decproxy, "removing %" GST_PTR_FORMAT, decoder);
   gst_element_set_state (decoder, GST_STATE_NULL);
   gst_bin_remove (GST_BIN (user_data), decoder);
-  if (decproxy->state == GST_DECPROXY_STATE_PUPPET)
+  if (decproxy->next_state == GST_DECPROXY_STATE_PUPPET)
     decproxy->decoder = NULL;
   else
     decproxy->puppet = NULL;
@@ -588,10 +614,23 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
     GST_WARNING_OBJECT (decproxy, "Couldn't sync state with parent");
   }
 
-  if (decproxy->state == GST_DECPROXY_STATE_PUPPET)
+  if (decproxy->next_state == GST_DECPROXY_STATE_PUPPET)
     decproxy->puppet = decoder;
   else
     decproxy->decoder = decoder;
+
+  decproxy->current_state = decproxy->next_state;
+
+  /* ???: is it okay to recursive function call in probe callback? */
+  if (decproxy->pending_state != GST_DECPROXY_STATE_UNKNOWN) {
+    GstDecProxyState state = decproxy->pending_state;
+
+    decproxy->pending_state = GST_DECPROXY_STATE_UNKNOWN;
+    GST_DEBUG_OBJECT (decproxy, "set pending state, (%s)",
+        ((state == GST_DECPROXY_STATE_PUPPET) ? "PUPPET" : "DECODER"));
+
+    gst_decproxy_switch_decoder (decproxy, state);
+  }
 
   return GST_PAD_PROBE_DROP;
 }
@@ -608,7 +647,7 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
 
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
 
-  if (decproxy->state == GST_DECPROXY_STATE_PUPPET)
+  if (decproxy->next_state == GST_DECPROXY_STATE_PUPPET)
     decoder = decproxy->decoder;
   else
     decoder = decproxy->puppet;
@@ -632,27 +671,6 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
   gst_object_unref (target_pad);
 
   return GST_PAD_PROBE_OK;
-}
-
-static void
-replace_decoder (GstDecProxy * decproxy, gboolean active)
-{
-  GstPad *pad;
-
-  if (active)
-    decproxy->state = GST_DECPROXY_STATE_DECODER;
-  else
-    decproxy->state = GST_DECPROXY_STATE_PUPPET;
-
-  pad = gst_element_get_static_pad (decproxy->front, "src");
-
-  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
-      replace_decoder_stage1_cb, decproxy, NULL);
-
-  GST_DEBUG_OBJECT (decproxy, "Blocking front identity srcpad, state = %d",
-      active);
-
-  gst_object_unref (pad);
 }
 
 static GstPadProbeReturn
@@ -685,12 +703,13 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
   decproxy->type = gst_cool_find_type (gst_structure_get_name (s));
   gst_caps_unref (caps);
 
-  if (decproxy->state != GST_DECPROXY_STATE_UNKNOWN) {
+  if (decproxy->current_state != GST_DECPROXY_STATE_UNKNOWN) {
     GST_DEBUG_OBJECT (pad, "waiting for acquired resource event to unblock");
     return GST_PAD_PROBE_OK;
   }
 
-  decproxy->state = GST_DECPROXY_STATE_PUPPET;
+  decproxy->next_state = decproxy->current_state = GST_DECPROXY_STATE_PUPPET;
+
   if (!(decproxy->puppet = find_and_create_decoder (decproxy))) {
     GST_ERROR_OBJECT (decproxy, "Failed to find proper decoder");
     return GST_PAD_PROBE_REMOVE;
@@ -728,19 +747,18 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 
   gst_object_unref (target_pad);
 
-  GST_DECPROXY_LOCK (decproxy);
   /* received acquired-resource event before called analyze_new_caps */
   if (decproxy->pending_switch_decoder) {
     gboolean active = FALSE;
+    GstDecProxyState state;
+
     decproxy->pending_switch_decoder = FALSE;
-    GST_DECPROXY_UNLOCK (decproxy);
 
     gst_structure_get_boolean (decproxy->resource_info, "active", &active);
-    gst_decproxy_switch_decoder (decproxy, active);
+    state = active ? GST_DECPROXY_STATE_DECODER : GST_DECPROXY_STATE_PUPPET;
 
-    return GST_PAD_PROBE_OK;
+    gst_decproxy_switch_decoder (decproxy, state);
   }
 
-  GST_DECPROXY_UNLOCK (decproxy);
   return GST_PAD_PROBE_OK;
 }

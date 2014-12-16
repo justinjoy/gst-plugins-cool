@@ -114,7 +114,9 @@ struct _GstDecProxy
   GstElement *decoder;
   GstElement *puppet;
 
-  GstDecProxyState state;
+  GstDecProxyState current_state;
+  GstDecProxyState next_state;
+  GstDecProxyState pending_state;
   GstStructure *resource_info;
 
   GstCoolStreamType type;
