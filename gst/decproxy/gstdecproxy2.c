@@ -393,6 +393,11 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GST_DECPROXY_UNLOCK (decproxy);
 
       gst_decproxy_switch_decoder (decproxy, active);
+
+      /* some of audio decoder should receive acqurired-resource event for
+       * switching audio track.
+       */
+      ret = gst_pad_event_default (pad, parent, event);
       break;
     }
     default:
