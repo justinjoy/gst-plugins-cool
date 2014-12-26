@@ -114,12 +114,12 @@ struct _GstDecProxy
   GstElement *decoder;
   GstElement *puppet;
 
-  GstDecProxyState current_state;
-  GstDecProxyState next_state;
-  GstDecProxyState pending_state;
+  GstDecProxyState current_decoder_state;
+  GstDecProxyState next_decoder_state;
+  GstDecProxyState pending_decoder_state;
   GstStructure *resource_info;
 
-  GstCoolStreamType type;
+  GstCoolStreamType stream_type;
   gulong blocked_id;
 
   gboolean pending_switch_decoder;
