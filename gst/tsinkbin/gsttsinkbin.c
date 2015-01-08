@@ -329,8 +329,7 @@ gst_tsink_appsink_event_probe_cb (GstPad * pad, GstPadProbeInfo * info,
       !g_strcmp0 (type_name, "subpicture/x-dvb")) {
     GST_DEBUG_OBJECT (pad, "[%s]- app sink configured as Sync %p", type_name,
         self);
-
-    g_object_set (self, "sync", TRUE, "async", TRUE, NULL);
+    g_object_set (self, "sync", TRUE, "async", TRUE, "ts-offset", 0, NULL);
   }
 
   /* remove the probe function from appsink sink pad */
