@@ -311,6 +311,12 @@ gst_decproxy_switch_decoder (GstDecProxy * decproxy, GstDecProxyState state)
   GstPad *front_srcpad = NULL;
   gulong probe_front = 0;
 
+  /* FIXME : To prevent event loss on front element */
+  front_sinkpad = gst_element_get_static_pad (decproxy->front, "sink");
+  probe_front =
+      gst_pad_add_probe (front_sinkpad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
+      NULL, NULL, NULL);
+
   /* This is first arrived acquired-resource event, unblock pad! */
   if (decproxy->blocked_id) {
     GstPad *front_srcpad = gst_element_get_static_pad (decproxy->front, "src");
@@ -330,7 +336,7 @@ gst_decproxy_switch_decoder (GstDecProxy * decproxy, GstDecProxyState state)
     GST_INFO_OBJECT (decproxy, "pending to change state to (%s)",
         ((state == GST_DECPROXY_STATE_PUPPET) ? "PUPPET" : "DECODER"));
     decproxy->pending_decoder_state = state;
-    return;
+    goto skip_switch;
   }
 
   /* skip to change equal state */
@@ -338,7 +344,7 @@ gst_decproxy_switch_decoder (GstDecProxy * decproxy, GstDecProxyState state)
       state == decproxy->next_decoder_state) {
     GST_INFO_OBJECT (decproxy, "skip to change equal state of decproxy. (%s)",
         ((state == GST_DECPROXY_STATE_PUPPET) ? "PUPPET" : "DECODER"));
-    return;
+    goto skip_switch;
   }
 
   decproxy->next_decoder_state = state;
@@ -347,20 +353,16 @@ gst_decproxy_switch_decoder (GstDecProxy * decproxy, GstDecProxyState state)
       "Blocking pad for replacing decoder, creating (%s)",
       ((state == GST_DECPROXY_STATE_PUPPET) ? "PUPPET" : "DECODER"));
 
-  /* FIXME : To prevent event loss on front element */
-  front_sinkpad = gst_element_get_static_pad (decproxy->front, "sink");
-  probe_front =
-      gst_pad_add_probe (front_sinkpad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
-      NULL, NULL, NULL);
-
   front_srcpad = gst_element_get_static_pad (decproxy->front, "src");
   gst_pad_add_probe (front_srcpad, GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
       replace_decoder_stage1_cb, decproxy, NULL);
 
+  gst_object_unref (front_srcpad);
+
+skip_switch:
   /* FIXME : To prevent event loss on front element */
   gst_pad_remove_probe (front_sinkpad, probe_front);
 
-  gst_object_unref (front_srcpad);
   gst_object_unref (front_sinkpad);
 }
 
@@ -639,6 +641,14 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
   GstDecProxy *decproxy = GST_DECPROXY (user_data);
 
   GST_DEBUG_OBJECT (decproxy, "pad(%s:%s) blocked", GST_DEBUG_PAD_NAME (pad));
+
+  if (GST_IS_BUFFER (info->data)) {
+    GstBuffer *buf = GST_BUFFER_CAST (info->data);
+    GST_DEBUG_OBJECT (pad, "got buffer : %" GST_PTR_FORMAT, buf);
+  } else if (GST_IS_EVENT (info->data)) {
+    GstEvent *event = GST_EVENT_CAST (info->data);
+    GST_DEBUG_OBJECT (pad, "got event : %" GST_PTR_FORMAT, event);
+  }
 
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
 
