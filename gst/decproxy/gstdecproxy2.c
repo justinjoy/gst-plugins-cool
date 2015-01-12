@@ -642,13 +642,12 @@ replace_decoder_stage1_cb (GstPad * pad, GstPadProbeInfo * info,
 
   GST_DEBUG_OBJECT (decproxy, "pad(%s:%s) blocked", GST_DEBUG_PAD_NAME (pad));
 
-  if (GST_IS_BUFFER (info->data)) {
-    GstBuffer *buf = GST_BUFFER_CAST (info->data);
-    GST_DEBUG_OBJECT (pad, "got buffer : %" GST_PTR_FORMAT, buf);
-  } else if (GST_IS_EVENT (info->data)) {
-    GstEvent *event = GST_EVENT_CAST (info->data);
-    GST_DEBUG_OBJECT (pad, "got event : %" GST_PTR_FORMAT, event);
-  }
+  if (GST_IS_BUFFER (info->data))
+    GST_LOG_OBJECT (pad, "got buffer : %" GST_PTR_FORMAT,
+        GST_BUFFER_CAST (info->data));
+  else if (GST_IS_EVENT (info->data))
+    GST_LOG_OBJECT (pad, "got event : %" GST_PTR_FORMAT,
+        GST_EVENT_CAST (info->data));
 
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
 

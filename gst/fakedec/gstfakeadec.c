@@ -161,8 +161,6 @@ gst_fakeadec_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
   fakeadec = GST_FAKEADEC (parent);
 
-  GST_DEBUG_OBJECT (pad, "got event %" GST_PTR_FORMAT, event);
-
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CAPS:
     {
@@ -217,7 +215,7 @@ gst_fakeadec_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 
   fakeadec = GST_FAKEADEC (parent);
 
-  GST_DEBUG_OBJECT (pad, "got buffer %" GST_PTR_FORMAT, buffer);
+  GST_LOG_OBJECT (pad, "got buffer %" GST_PTR_FORMAT, buffer);
 
   if (fakeadec->active_mode) {
     if (fakeadec->need_gap) {

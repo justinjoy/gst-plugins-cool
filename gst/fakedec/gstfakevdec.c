@@ -110,8 +110,6 @@ gst_fakevdec_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
   fakevdec = GST_FAKEVDEC (parent);
 
-  GST_DEBUG_OBJECT (pad, "got event %" GST_PTR_FORMAT, event);
-
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CAPS:
     {
@@ -140,7 +138,8 @@ gst_fakevdec_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   GstFlowReturn ret;
 
   fakevdec = GST_FAKEVDEC (parent);
-  GST_DEBUG_OBJECT (pad, "got buffer %" GST_PTR_FORMAT, buffer);
+
+  GST_LOG_OBJECT (pad, "got buffer %" GST_PTR_FORMAT, buffer);
 
   buffer = gst_buffer_make_writable (buffer);
   GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_CORRUPTED);
