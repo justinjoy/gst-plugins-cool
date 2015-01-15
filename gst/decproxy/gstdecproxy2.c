@@ -97,6 +97,7 @@ gst_decproxy_init (GstDecProxy * decproxy)
   decproxy->next_decoder_state = GST_DECPROXY_STATE_UNKNOWN;
   decproxy->pending_decoder_state = GST_DECPROXY_STATE_UNKNOWN;
   decproxy->pending_switch_decoder = FALSE;
+  decproxy->dts_seamless = FALSE;
 
   decproxy->front = gst_element_factory_make ("identity", NULL);
   decproxy->back = gst_element_factory_make ("identity", NULL);
@@ -381,6 +382,12 @@ gst_decproxy_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
       gboolean active = FALSE;
       GstDecProxyState state;
 
+      if (gst_event_has_name (event, "set-dts-seamless")) {
+        GST_DEBUG_OBJECT (event, "Set dts-seamless property");
+        decproxy->dts_seamless = TRUE;
+        break;
+      }
+
       if (!gst_event_has_name (event, "acquired-resource")) {
         GST_DEBUG_OBJECT (event, "Unknown custom event");
         ret = gst_pad_event_default (pad, parent, event);
@@ -557,6 +564,13 @@ find_and_create_decoder (GstDecProxy * decproxy)
     GST_DEBUG_OBJECT (decoder,
         "set resource info to decoder, %" GST_PTR_FORMAT,
         decproxy->resource_info);
+  }
+
+  if (decproxy->dts_seamless
+      && g_object_class_find_property (G_OBJECT_GET_CLASS (decoder),
+          "dts-seamless")) {
+    g_object_set (decoder, "dts-seamless", decproxy->dts_seamless, NULL);
+    GST_DEBUG_OBJECT (decoder, "set dts-seamless TRUE to decoder");
   }
 
   return decoder;

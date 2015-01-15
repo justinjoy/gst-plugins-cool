@@ -123,6 +123,7 @@ struct _GstDecProxy
   gulong blocked_id;
 
   gboolean pending_switch_decoder;
+  gboolean dts_seamless;
 };
 
 struct _GstDecProxyClass
