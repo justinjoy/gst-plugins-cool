@@ -779,5 +779,12 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
     gst_decproxy_switch_decoder (decproxy, state);
   }
 
+  /* FIXME: Post a message to player that it is appropriate time to allocate
+   * H/W resource for custom pipeline */
+  if (!gst_element_post_message (GST_ELEMENT_CAST (decproxy),
+          gst_message_new_application (GST_OBJECT_CAST (decproxy),
+              gst_structure_new_empty ("configured-decoder"))))
+    GST_ERROR_OBJECT (decproxy, "ERROR: Send configured-decoder message");
+
   return GST_PAD_PROBE_OK;
 }
