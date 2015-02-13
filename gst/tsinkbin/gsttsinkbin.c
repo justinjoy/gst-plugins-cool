@@ -324,13 +324,14 @@ gst_tsink_appsink_event_probe_cb (GstPad * pad, GstPadProbeInfo * info,
   g_return_val_if_fail (tmp_structure != NULL, GST_PAD_PROBE_OK);
   type_name = gst_structure_get_name (tmp_structure);
 
+  GST_DEBUG_OBJECT (pad, "[%s]- app sink configured as Sync %p", type_name,
+      self);
+
   /* check the mime type */
-  if (!g_strcmp0 (type_name, "application/x-teletext") ||
-      !g_strcmp0 (type_name, "subpicture/x-dvb")) {
-    GST_DEBUG_OBJECT (pad, "[%s]- app sink configured as Sync %p", type_name,
-        self);
-    g_object_set (self, "sync", TRUE, "async", TRUE, "ts-offset", 0, NULL);
-  }
+  if (!g_strcmp0 (type_name, "application/x-teletext"))
+    g_object_set (self, "sync", TRUE, "async", FALSE, "ts-offset", 0, NULL);
+  else if (!g_strcmp0 (type_name, "subpicture/x-dvb"))
+    g_object_set (self, "sync", FALSE, "async", FALSE, "ts-offset", 0, NULL);
 
   /* remove the probe function from appsink sink pad */
   gst_pad_remove_probe (pad, GST_PAD_PROBE_INFO_ID (info));
