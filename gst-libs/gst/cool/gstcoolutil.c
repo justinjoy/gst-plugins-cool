@@ -151,6 +151,7 @@ gst_cool_taglist_to_info (GstTagList * taglist, char *stream_id,
 
 done:
   gst_structure_free (s);
+  g_free (str_structure);
 
   return media_info;
 }

@@ -195,6 +195,11 @@ gst_decproxy_finalize (GObject * object)
 
   g_rec_mutex_clear (&decproxy->lock);
 
+  if (decproxy->resource_info) {
+    gst_structure_free (decproxy->resource_info);
+    decproxy->resource_info = NULL;
+  }
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -760,11 +765,14 @@ analyze_new_caps (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 
   /* set up the outcaps in order to finish auto-plugging */
   if (decproxy->stream_type == GST_COOL_STREAM_TYPE_VIDEO)
-    gst_pad_set_caps (target_pad, gst_caps_from_string ("video/x-raw"));
+    caps = gst_caps_from_string ("video/x-raw");
   else if (decproxy->stream_type == GST_COOL_STREAM_TYPE_AUDIO)
-    gst_pad_set_caps (target_pad, gst_caps_from_string ("audio/x-media"));
+    caps = gst_caps_from_string ("audio/x-media");
+
+  gst_pad_set_caps (target_pad, caps);
 
   gst_object_unref (target_pad);
+  gst_caps_unref (caps);
 
   /* received acquired-resource event before called analyze_new_caps */
   if (decproxy->pending_switch_decoder) {
