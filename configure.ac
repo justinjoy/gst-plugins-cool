@@ -121,6 +121,9 @@ AG_GST_CHECK_PLUGIN(tsinkbin)
 AG_GST_CHECK_PLUGIN(textbin)
 AG_GST_CHECK_PLUGIN(fakedec)
 
+dnl check for plugins to enable or disable
+AG_GST_CHECK_PLUGIN_WITH_DEFAULT_FEATURE(reformatter, no)
+
 dnl check for documentation tools
 GTK_DOC_CHECK([1.12])
 
@@ -238,6 +241,7 @@ gst/httpextbin/Makefile
 gst/dynappsrc/Makefile
 gst/streamiddemux/Makefile
 gst/textbin/Makefile
+gst/reformatter/Makefile
 gst/tsinkbin/Makefile
 gst-libs/Makefile
 gst-libs/gst/Makefile
