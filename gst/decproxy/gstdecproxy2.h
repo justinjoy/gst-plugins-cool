@@ -30,6 +30,20 @@
 
 G_BEGIN_DECLS
 
+#ifdef DISABLE_VP9
+#define VP9_VIDEO_CAPS
+#else
+#define VP9_VIDEO_CAPS \
+    "video/x-vp9;"
+#endif
+
+#ifdef DISABLE_FLAC
+#define FLAC_AUDIO_CAPS
+#else
+#define FLAC_AUDIO_CAPS \
+    "audio/x-flac;"
+#endif
+
 #define DECODE_VIDEO_CAPS \
     "video/x-divx;" \
     "video/x-h265;" \
@@ -45,7 +59,7 @@ G_BEGIN_DECLS
     "video/x-ffv;" \
     "video/x-3ivx;" \
     "video/x-vp8;" \
-    "video/x-vp9;" \
+    VP9_VIDEO_CAPS \
     "video/x-xvid;" \
     "video/x-flash-video;" \
     "image/jpeg"
@@ -70,7 +84,7 @@ G_BEGIN_DECLS
     "audio/x-vorbis;" \
     "audio/AMR;" \
     "audio/AMR-WB;" \
-    "audio/x-flac;" \
+    FLAC_AUDIO_CAPS \
     "audio/x-mulaw;" \
     "audio/x-alaw;" \
     "audio/x-private1-dts"
