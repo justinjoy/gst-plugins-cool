@@ -617,8 +617,11 @@ replace_decoder_stage2_cb (GstPad * pad, GstPadProbeInfo * info,
       GST_ELEMENT_WARNING (GST_ELEMENT_CAST (decproxy), STREAM, CODEC_NOT_FOUND,
           ("This audio is not supported by decoder"),
           ("This audio is not supported by decoder"));
-    } else
+    } else {
+      GST_ELEMENT_ERROR (decproxy, CORE, MISSING_PLUGIN, (NULL),
+          ("Cannot find proper video decoder plugins"));
       return GST_PAD_PROBE_REMOVE;
+    }
   }
 
   gst_bin_add (GST_BIN_CAST (decproxy), decoder);
